@@ -78,6 +78,8 @@ async function scrapeLeads({ countryCode, country, state, city, industry }, onLe
     });
 
     const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await page.setCookie({ name: 'CONSENT', value: 'YES+cb.20230101-00-p0.en+FX+410', domain: '.google.com' });
     
     // Construct search query
     const locationParts = [city, state, country].filter(Boolean);
@@ -159,6 +161,8 @@ async function scrapeLeads({ countryCode, country, state, city, industry }, onLe
       
       try {
         const detailPage = await browser.newPage();
+        await detailPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await detailPage.setCookie({ name: 'CONSENT', value: 'YES+cb.20230101-00-p0.en+FX+410', domain: '.google.com' });
         await detailPage.goto(biz.url, { waitUntil: 'networkidle2', timeout: 30000 });
         
         // Extract Phone, Website, Address, Rating
