@@ -1,30 +1,29 @@
-FROM ghcr.io/puppeteer/puppeteer:latest
+FROM node:18-slim
 
-# Switch to root to copy files and adjust permissions
-USER root
+# Install dependencies required for Puppeteer and Chrome
+RUN apt-get update \
+    && apt-get install -y wget gnupg \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 \
+      --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
+# Set up app directory
 WORKDIR /app
 
-# Tell Puppeteer to skip downloading Chrome and use the installed one
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Tell Puppeteer to skip downloading Chrome locally and use the one we just installed via apt-get
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
-# Copy package files
+# Install app dependencies
 COPY package*.json ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy the rest of the application
+# Copy app source
 COPY . .
 
-# Ensure correct permissions
-RUN chown -R pptruser:pptruser /app
-
-# Switch back to the non-privileged user
-USER pptruser
-
-# Expose the port
+# Expose port and start
 EXPOSE 3001
-
-# Start the server
 CMD ["node", "server.js"]
