@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer');
+// puppeteer is now imported dynamically in scrapeLeads to support ESM
 const { parsePhoneNumber } = require('libphonenumber-js/max');
 const axios = require('axios');
 const pdfParse = require('pdf-parse');
@@ -599,6 +599,8 @@ async function scrapeLeads({ countryCode, country, state, city, industry }, onLe
     const VIBE_API_KEY = process.env.VIBE_API_KEY || '';
 
     onStatusUpdate('Launching browser...');
+    const puppeteerModule = await import('puppeteer');
+    const puppeteer = puppeteerModule.default || puppeteerModule;
     browser = await puppeteer.launch({
       headless: "new",
       args: ['--no-sandbox', '--disable-setuid-sandbox']
