@@ -216,14 +216,13 @@ function App() {
   const exportToCSV = () => {
     if (leads.length === 0) return;
     
-    const headers = ['Company Name', 'Customer Segment', 'Rating', 'Address', 'Decision Makers (Predicted)', 'Mobile Number', 'Landline Number', 'Email ID', 'Website', 'Socials'];
+    const headers = ['Company Name', 'Customer Segment', 'Address', 'Decision Makers (Predicted)', 'Mobile Number', 'Landline Number', 'Email ID', 'Website', 'Socials'];
     const csvRows = [headers.join(',')];
     
     for (const lead of leads) {
       const values = [
         lead.companyName,
         lead.industry,
-        lead.rating,
         lead.address,
         lead.contactPerson,
         lead.mobileNumber ? `="${lead.mobileNumber}"` : '',
@@ -233,7 +232,7 @@ function App() {
         lead.socials
       ].map((val, idx) => {
         // If it's a mobile or landline formula, don't wrap it in extra quotes
-        if ((idx === 5 || idx === 6) && val) return val;
+        if ((idx === 4 || idx === 5) && val) return val;
         
         const str = String(val || '').replace(/"/g, '""');
         return `"${str}"`;
@@ -335,6 +334,23 @@ function App() {
               </button>
             )}
           </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+            <button 
+              onClick={() => startSearch(true)}
+              disabled={isScraping}
+              style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid #d4af37', color: '#d4af37', boxShadow: 'none' }}
+            >
+              <Search size={16} /> Add to Existing List
+            </button>
+            <button 
+              onClick={exportToCSV}
+              disabled={leads.length === 0}
+              style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid #94a3b8', color: '#e2e8f0', boxShadow: 'none', cursor: leads.length === 0 ? 'not-allowed' : 'pointer', opacity: leads.length === 0 ? 0.6 : 1 }}
+            >
+              <Download size={16} /> Export CSV
+            </button>
+          </div>
           
           {statusMsg && (
             <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(212, 175, 55, 0.1)', borderRadius: '4px', border: '1px solid rgba(212, 175, 55, 0.3)' }}>
@@ -350,22 +366,7 @@ function App() {
               <h2 style={{ margin: 0 }}>Leads Found ({leads.length})</h2>
               {skippedCount > 0 && <p style={{ margin: '4px 0 0 0', fontSize: '0.85em', color: '#f59e0b' }}>Skipped {skippedCount} companies missing mandatory Email/Phone</p>}
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button 
-                onClick={() => startSearch(true)}
-                disabled={isScraping}
-                style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'transparent', border: '1px solid #d4af37', color: '#d4af37', boxShadow: 'none' }}
-              >
-                <Search size={16} /> Scrape More
-              </button>
-              <button 
-                onClick={exportToCSV}
-                disabled={leads.length === 0}
-                style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'transparent', border: '1px solid #94a3b8', color: '#e2e8f0', boxShadow: 'none', cursor: leads.length === 0 ? 'not-allowed' : 'pointer', opacity: leads.length === 0 ? 0.6 : 1 }}
-              >
-                <Download size={16} /> Export CSV
-              </button>
-            </div>
+
           </div>
 
           <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '650px', marginTop: '16px', flex: 1 }}>
@@ -374,7 +375,6 @@ function App() {
                 <tr>
                   <th>Company Name</th>
                   <th>Customer Segment</th>
-                  <th>Rating</th>
                   <th>Address</th>
                   <th>Decision Makers (Predicted)</th>
                   <th>Mobile Number</th>
@@ -396,31 +396,30 @@ function App() {
                     <tr key={i}>
                       <td style={{ fontWeight: 600, color: '#ffffff' }}>{lead.companyName}</td>
                       <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.industry}>
-                        {lead.industry || '-'}
+                        {lead.industry || <div style={{ textAlign: 'center' }}>-</div>}
                       </td>
-                      <td style={{ color: '#d4af37', fontWeight: 500 }}>{lead.rating || '-'}</td>
                       <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.address}>
-                        {lead.address || '-'}
+                        {lead.address || <div style={{ textAlign: 'center' }}>-</div>}
                       </td>
                       <td style={{ maxWidth: '250px', whiteSpace: 'pre-wrap', fontSize: '0.85em' }}>
-                        {lead.contactPerson || '-'}
+                        {lead.contactPerson || <div style={{ textAlign: 'center' }}>-</div>}
                       </td>
-                      <td>{lead.mobileNumber || '-'}</td>
-                      <td>{lead.landlineNumber || '-'}</td>
+                      <td>{lead.mobileNumber || <div style={{ textAlign: 'center' }}>-</div>}</td>
+                      <td>{lead.landlineNumber || <div style={{ textAlign: 'center' }}>-</div>}</td>
                       <td>
-                        {lead.emailId ? <a href={`mailto:${lead.emailId.split(',')[0]}`} style={{ color: '#d4af37' }}>{lead.emailId}</a> : '-'}
+                        {lead.emailId ? <a href={`mailto:${lead.emailId.split(',')[0]}`} style={{ color: '#d4af37' }}>{lead.emailId}</a> : <div style={{ textAlign: 'center' }}>-</div>}
                       </td>
                       <td>
                         {lead.website ? (
                           <a href={lead.website} target="_blank" rel="noreferrer" style={{ color: '#d4af37' }}>Link</a>
-                        ) : '-'}
+                        ) : <div style={{ textAlign: 'center' }}>-</div>}
                       </td>
                       <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {lead.socials ? lead.socials.split(', ').map(link => (
                            <a key={link} href={link} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginRight: '8px', color: '#d4af37' }}>
                              {link.includes('linkedin') ? 'in' : link.includes('facebook') ? 'fb' : link.includes('twitter') ? 'tw' : link.includes('instagram') ? 'ig' : 'link'}
                            </a>
-                        )) : '-'}
+                        )) : <div style={{ textAlign: 'center' }}>-</div>}
                       </td>
                     </tr>
                   ))
