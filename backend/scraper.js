@@ -718,11 +718,12 @@ async function scrapeLeads({ countryCode, country, state, city, industry }, onLe
         const biz = businesses[i];
         onStatusUpdate(`Checking ${biz.name}...`);
         
+        let detailPage;
         try {
-          const detailPage = await browser.newPage();
+          detailPage = await browser.newPage();
           await detailPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
           await detailPage.setCookie({ name: 'CONSENT', value: 'YES+cb.20230101-00-p0.en+FX+410', domain: '.google.com' });
-          await detailPage.goto(biz.url, { waitUntil: 'networkidle2', timeout: 30000 });
+          await detailPage.goto(biz.url, { waitUntil: 'domcontentloaded', timeout: 15000 });
           
           const details = await detailPage.evaluate(() => {
             let phone = '', website = '', address = '', rating = '';
@@ -765,12 +766,13 @@ async function scrapeLeads({ countryCode, country, state, city, industry }, onLe
           if (details.website) {
             try { existingDomains.add(new URL(details.website).hostname.replace('www.', '')); } catch(e){}
             onStatusUpdate(`Scraping website for ${biz.name}...`);
+            let webPage;
             try {
-              const webPage = await browser.newPage();
+              webPage = await browser.newPage();
               let siteUrl = details.website;
               if (!siteUrl.startsWith('http')) siteUrl = 'http://' + siteUrl;
               
-              await webPage.goto(siteUrl, { waitUntil: 'networkidle2', timeout: 20000 });
+              await webPage.goto(siteUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
               
               const webData = await webPage.evaluate(() => {
                 let emails = [], socials = [];
@@ -804,7 +806,6 @@ async function scrapeLeads({ countryCode, country, state, city, industry }, onLe
               emails = webData.emails.filter(e => !e.endsWith('.png') && !e.endsWith('.jpg') && !e.endsWith('.jpeg') && !e.endsWith('.gif'));
               socials = webData.socials;
               description = webData.description;
-              await webPage.close();
 
               let domain = '';
               try { domain = new URL(siteUrl).hostname.replace('www.', ''); } catch(e) {}
@@ -818,6 +819,8 @@ async function scrapeLeads({ countryCode, country, state, city, industry }, onLe
               }
             } catch (err) {
               console.log(`Failed to scrape website ${details.website}`, err.message);
+            } finally {
+              if (webPage) await webPage.close().catch(e => {});
             }
           }
 
@@ -844,9 +847,10 @@ async function scrapeLeads({ countryCode, country, state, city, industry }, onLe
             } catch (e) { lead.landlineNumber = details.phone; }
           }
           onLeadFound(lead);
-          await detailPage.close();
         } catch (err) {
            console.log(`Error processing business ${biz.name}`, err.message);
+        } finally {
+           if (detailPage) await detailPage.close().catch(e => {});
         }
       }
     } catch (e) {
