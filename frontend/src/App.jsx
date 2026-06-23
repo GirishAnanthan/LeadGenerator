@@ -91,6 +91,7 @@ function App() {
   const [industry, setIndustry] = useState('');
   const [customIndustry, setCustomIndustry] = useState('');
 
+  const [searchDepth, setSearchDepth] = useState('medium');
   const [leads, setLeads] = useState([]);
   const [skippedCount, setSkippedCount] = useState(0);
   const [isScraping, setIsScraping] = useState(false);
@@ -150,7 +151,8 @@ function App() {
           country: selectedCountry,
           state: selectedState,
           city: selectedCity,
-          industry: finalIndustry
+          industry: finalIndustry,
+          searchDepth: searchDepth
         }),
         signal: abortControllerRef.current.signal
       });
@@ -320,7 +322,27 @@ function App() {
             onChange={(e) => { setCustomIndustry(e.target.value); setIndustry(''); }}
           />
 
-          <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+          <div style={{ marginTop: '24px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#ffffff' }}>
+              <Activity size={16} color="#d4af37" /> Search Depth
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.9em', cursor: 'pointer', padding: '6px 8px', borderRadius: '4px', background: searchDepth === 'fast' ? 'rgba(212, 175, 55, 0.15)' : 'transparent' }}>
+                <input type="radio" name="searchDepth" value="fast" checked={searchDepth === 'fast'} onChange={() => setSearchDepth('fast')} style={{ accentColor: '#d4af37' }} />
+                <span><strong style={{ color: '#22c55e' }}>Fast</strong> — VIBE API + Maps (Main Query, 50 Scrolls)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.9em', cursor: 'pointer', padding: '6px 8px', borderRadius: '4px', background: searchDepth === 'medium' ? 'rgba(212, 175, 55, 0.15)' : 'transparent' }}>
+                <input type="radio" name="searchDepth" value="medium" checked={searchDepth === 'medium'} onChange={() => setSearchDepth('medium')} style={{ accentColor: '#d4af37' }} />
+                <span><strong style={{ color: '#f59e0b' }}>Medium</strong> — Fast + Google Search (Base Query, Unlimited Pages)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.9em', cursor: 'pointer', padding: '6px 8px', borderRadius: '4px', background: searchDepth === 'deep' ? 'rgba(212, 175, 55, 0.15)' : 'transparent' }}>
+                <input type="radio" name="searchDepth" value="deep" checked={searchDepth === 'deep'} onChange={() => setSearchDepth('deep')} style={{ accentColor: '#d4af37' }} />
+                <span><strong style={{ color: '#ef4444' }}>Deep</strong> — Medium + 5 Map Variants + 15 Query Variations + B2B Sites + Directory Discovery</span>
+              </label>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
             <button
               style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
               onClick={() => startSearch(false)}

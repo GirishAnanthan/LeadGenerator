@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 app.post('/api/scrape', async (req, res) => {
-  const { countryCode, country, state, city, industry } = req.body;
+  const { countryCode, country, state, city, industry, searchDepth } = req.body;
   
   if (!industry) {
     return res.status(400).json({ error: 'Industry is required' });
@@ -32,7 +32,7 @@ app.post('/api/scrape', async (req, res) => {
       isCancelled = true;
     });
 
-    await scrapeLeads({ countryCode, country, state, city, industry }, (lead) => {
+    await scrapeLeads({ countryCode, country, state, city, industry, searchDepth }, (lead) => {
       sendEvent('lead', lead);
     }, (status) => {
       sendEvent('status', { message: status });
