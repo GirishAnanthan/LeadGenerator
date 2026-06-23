@@ -323,20 +323,20 @@ function App() {
           />
 
           <div style={{ marginTop: '24px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#ffffff' }}>
-              <Activity size={16} color="#d4af37" /> Search Depth
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', color: '#ffffff', fontSize: '1.1em' }}>
+              <Activity size={20} color="#d4af37" /> Search Depth
             </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.9em', cursor: 'pointer', padding: '6px 8px', borderRadius: '4px', background: searchDepth === 'fast' ? 'rgba(212, 175, 55, 0.15)' : 'transparent' }}>
-                <input type="radio" name="searchDepth" value="fast" checked={searchDepth === 'fast'} onChange={() => setSearchDepth('fast')} style={{ accentColor: '#d4af37' }} />
+            <div style={{ display: 'flex', flexDirection: 'row', gap: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#94a3b8', fontSize: '1.15em', cursor: 'pointer', padding: '8px 14px', borderRadius: '6px', background: searchDepth === 'fast' ? 'rgba(212, 175, 55, 0.15)' : 'transparent', flex: 1, justifyContent: 'center' }}>
+                <input type="radio" name="searchDepth" value="fast" checked={searchDepth === 'fast'} onChange={() => setSearchDepth('fast')} style={{ accentColor: '#d4af37', width: '18px', height: '18px', cursor: 'pointer' }} />
                 <span><strong style={{ color: '#22c55e' }}>Fast</strong></span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.9em', cursor: 'pointer', padding: '6px 8px', borderRadius: '4px', background: searchDepth === 'medium' ? 'rgba(212, 175, 55, 0.15)' : 'transparent' }}>
-                <input type="radio" name="searchDepth" value="medium" checked={searchDepth === 'medium'} onChange={() => setSearchDepth('medium')} style={{ accentColor: '#d4af37' }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#94a3b8', fontSize: '1.15em', cursor: 'pointer', padding: '8px 14px', borderRadius: '6px', background: searchDepth === 'medium' ? 'rgba(212, 175, 55, 0.15)' : 'transparent', flex: 1, justifyContent: 'center' }}>
+                <input type="radio" name="searchDepth" value="medium" checked={searchDepth === 'medium'} onChange={() => setSearchDepth('medium')} style={{ accentColor: '#d4af37', width: '18px', height: '18px', cursor: 'pointer' }} />
                 <span><strong style={{ color: '#f59e0b' }}>Medium</strong></span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.9em', cursor: 'pointer', padding: '6px 8px', borderRadius: '4px', background: searchDepth === 'deep' ? 'rgba(212, 175, 55, 0.15)' : 'transparent' }}>
-                <input type="radio" name="searchDepth" value="deep" checked={searchDepth === 'deep'} onChange={() => setSearchDepth('deep')} style={{ accentColor: '#d4af37' }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#94a3b8', fontSize: '1.15em', cursor: 'pointer', padding: '8px 14px', borderRadius: '6px', background: searchDepth === 'deep' ? 'rgba(212, 175, 55, 0.15)' : 'transparent', flex: 1, justifyContent: 'center' }}>
+                <input type="radio" name="searchDepth" value="deep" checked={searchDepth === 'deep'} onChange={() => setSearchDepth('deep')} style={{ accentColor: '#d4af37', width: '18px', height: '18px', cursor: 'pointer' }} />
                 <span><strong style={{ color: '#ef4444' }}>Deep</strong></span>
               </label>
             </div>
