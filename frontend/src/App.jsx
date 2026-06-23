@@ -24,7 +24,12 @@ const INDUSTRY_SEGMENTS = [
   "Agriculture & Farming Equipment",
   "Solar EPC registered with MNRE",
   "Solar EPC not registered with MNRE",
-  "Solar Project Developers"
+  "Solar Project Developers",
+  "Ceramic Tiles Manufacturers",
+  "Vitrified Tiles Manufacturers",
+  "Wall Tiles & Floor Tiles",
+  "Sanitaryware & Bathroom Fittings",
+  "Construction Materials & Building Products"
 ];
 
 const customStyles = {
@@ -78,14 +83,14 @@ const customStyles = {
 function App() {
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
-  
+
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedCountryCode, setSelectedCountryCode] = useState('');
   const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [industry, setIndustry] = useState('');
   const [customIndustry, setCustomIndustry] = useState('');
-  
+
   const [leads, setLeads] = useState([]);
   const [skippedCount, setSkippedCount] = useState(0);
   const [isScraping, setIsScraping] = useState(false);
@@ -102,11 +107,11 @@ function App() {
     setSelectedCountryCode(cCode);
     const cObj = countries.find(c => c.isoCode === cCode);
     setSelectedCountry(cObj ? cObj.name : '');
-    
+
     // Reset child fields
     setSelectedState('');
     setSelectedCity('');
-    
+
     if (cCode) {
       setStates(State.getStatesOfCountry(cCode));
     } else {
@@ -136,7 +141,7 @@ function App() {
 
     try {
       abortControllerRef.current = new AbortController();
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://tidy-parrots-return.loca.lt';
       const response = await fetch(`${API_BASE_URL}/api/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -161,37 +166,37 @@ function App() {
 
         const chunk = decoder.decode(value, { stream: true });
         const events = chunk.split('\n\n').filter(Boolean);
-        
+
         events.forEach(eventStr => {
           if (eventStr.startsWith('event: ')) {
-             const lines = eventStr.split('\n');
-             const eventType = lines[0].replace('event: ', '').trim();
-             const eventDataStr = lines[1] ? lines[1].replace('data: ', '').trim() : null;
-             
-             if (eventDataStr) {
-               try {
-                 const data = JSON.parse(eventDataStr);
-                 if (eventType === 'status') {
-                   setStatusMsg(data.message);
-                   if (data.message.startsWith('Skipped')) {
-                     setSkippedCount(prev => prev + 1);
-                   }
-                 } else if (eventType === 'lead') {
-                   setLeads(prev => {
-                     if (prev.some(l => l.companyName === data.companyName)) return prev;
-                     return [...prev, { ...data, industry: finalIndustry }];
-                   });
-                 } else if (eventType === 'error') {
-                   setStatusMsg('Error: ' + data.message);
-                   setIsScraping(false);
-                 } else if (eventType === 'done') {
-                   setStatusMsg('Scraping completed.');
-                   setIsScraping(false);
-                 }
-               } catch (e) {
-                 console.error("Parse error", e);
-               }
-             }
+            const lines = eventStr.split('\n');
+            const eventType = lines[0].replace('event: ', '').trim();
+            const eventDataStr = lines[1] ? lines[1].replace('data: ', '').trim() : null;
+
+            if (eventDataStr) {
+              try {
+                const data = JSON.parse(eventDataStr);
+                if (eventType === 'status') {
+                  setStatusMsg(data.message);
+                  if (data.message.startsWith('Skipped')) {
+                    setSkippedCount(prev => prev + 1);
+                  }
+                } else if (eventType === 'lead') {
+                  setLeads(prev => {
+                    if (prev.some(l => l.companyName === data.companyName)) return prev;
+                    return [...prev, { ...data, industry: finalIndustry }];
+                  });
+                } else if (eventType === 'error') {
+                  setStatusMsg('Error: ' + data.message);
+                  setIsScraping(false);
+                } else if (eventType === 'done') {
+                  setStatusMsg('Scraping completed.');
+                  setIsScraping(false);
+                }
+              } catch (e) {
+                console.error("Parse error", e);
+              }
+            }
           }
         });
       }
@@ -215,10 +220,10 @@ function App() {
 
   const exportToCSV = () => {
     if (leads.length === 0) return;
-    
+
     const headers = ['Company Name', 'Customer Segment', 'Address', 'Decision Makers (Predicted)', 'Mobile Number', 'Landline Number', 'Email ID', 'Website', 'Socials'];
     const csvRows = [headers.join(',')];
-    
+
     for (const lead of leads) {
       const values = [
         lead.companyName,
@@ -233,13 +238,13 @@ function App() {
       ].map((val, idx) => {
         // If it's a mobile or landline formula, don't wrap it in extra quotes
         if ((idx === 4 || idx === 5) && val) return val;
-        
+
         const str = String(val || '').replace(/"/g, '""');
         return `"${str}"`;
       });
       csvRows.push(values.join(','));
     }
-    
+
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -262,9 +267,9 @@ function App() {
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0, color: '#ffffff' }}>
             <MapPin size={20} color="#d4af37" /> Location Setup
           </h2>
-          
+
           <label>Country</label>
-          <Select 
+          <Select
             styles={customStyles}
             options={countries.map(c => ({ value: c.isoCode, label: c.name }))}
             value={selectedCountryCode ? { value: selectedCountryCode, label: selectedCountry } : null}
@@ -274,7 +279,7 @@ function App() {
           />
 
           <label>State / Province</label>
-          <Select 
+          <Select
             styles={customStyles}
             options={states.map(s => ({ value: s.name, label: s.name }))}
             value={selectedState ? { value: selectedState, label: selectedState } : null}
@@ -285,9 +290,9 @@ function App() {
           />
 
           <label>City / Area (Optional)</label>
-          <input 
-            type="text" 
-            placeholder="e.g. San Francisco, London..." 
+          <input
+            type="text"
+            placeholder="e.g. San Francisco, London..."
             value={selectedCity}
             onChange={(e) => setSelectedCity(e.target.value)}
             disabled={!selectedState && !selectedCountry}
@@ -296,9 +301,9 @@ function App() {
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px', color: '#ffffff' }}>
             <Building size={20} color="#d4af37" /> Industry Segment
           </h2>
-          
+
           <label>Predefined Segment {selectedCity ? `for ${selectedCity}` : selectedState ? `for ${selectedState}` : ''}</label>
-          <Select 
+          <Select
             styles={customStyles}
             options={INDUSTRY_SEGMENTS.map(ind => ({ value: ind, label: ind }))}
             value={industry ? { value: industry, label: industry } : null}
@@ -308,15 +313,15 @@ function App() {
           />
 
           <label>Or Type Custom Industry</label>
-          <input 
-            type="text" 
-            placeholder="e.g. Solar Panel Installers" 
+          <input
+            type="text"
+            placeholder="e.g. Solar Panel Installers"
             value={customIndustry}
             onChange={(e) => { setCustomIndustry(e.target.value); setIndustry(''); }}
           />
 
           <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
-            <button 
+            <button
               style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
               onClick={() => startSearch(false)}
               disabled={isScraping || !selectedCountry || (!industry && !customIndustry)}
@@ -326,7 +331,7 @@ function App() {
             </button>
 
             {isScraping && (
-              <button 
+              <button
                 style={{ flex: '0 0 auto', background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', display: 'flex', gap: '8px', alignItems: 'center' }}
                 onClick={cancelSearch}
               >
@@ -336,14 +341,14 @@ function App() {
           </div>
 
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-            <button 
+            <button
               onClick={() => startSearch(true)}
               disabled={isScraping}
               style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid #d4af37', color: '#d4af37', boxShadow: 'none' }}
             >
               <Search size={16} /> Add to Existing List
             </button>
-            <button 
+            <button
               onClick={exportToCSV}
               disabled={leads.length === 0}
               style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid #94a3b8', color: '#e2e8f0', boxShadow: 'none', cursor: leads.length === 0 ? 'not-allowed' : 'pointer', opacity: leads.length === 0 ? 0.6 : 1 }}
@@ -351,7 +356,7 @@ function App() {
               <Download size={16} /> Export CSV
             </button>
           </div>
-          
+
           {statusMsg && (
             <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(212, 175, 55, 0.1)', borderRadius: '4px', border: '1px solid rgba(212, 175, 55, 0.3)' }}>
               <small style={{ color: '#e2e8f0' }}>{statusMsg}</small>
@@ -416,9 +421,9 @@ function App() {
                       </td>
                       <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {lead.socials ? lead.socials.split(', ').map(link => (
-                           <a key={link} href={link} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginRight: '8px', color: '#d4af37' }}>
-                             {link.includes('linkedin') ? 'in' : link.includes('facebook') ? 'fb' : link.includes('twitter') ? 'tw' : link.includes('instagram') ? 'ig' : 'link'}
-                           </a>
+                          <a key={link} href={link} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginRight: '8px', color: '#d4af37' }}>
+                            {link.includes('linkedin') ? 'in' : link.includes('facebook') ? 'fb' : link.includes('twitter') ? 'tw' : link.includes('instagram') ? 'ig' : 'link'}
+                          </a>
                         )) : <div style={{ textAlign: 'center' }}>-</div>}
                       </td>
                     </tr>
