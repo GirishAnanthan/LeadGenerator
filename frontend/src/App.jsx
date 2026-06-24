@@ -266,13 +266,13 @@ function App() {
   };
 
   return (
-    <div style={{ maxWidth: '100%', margin: '0 auto', width: '100%', padding: '20px' }}>
-      <header style={{ textAlign: 'center', margin: '20px 0 40px 0' }}>
-        <h1>Lead Scrapper</h1>
-        <p style={{ color: '#94a3b8', fontSize: '1.2em' }}>Intelligent Business Lead Generation</p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '16px 20px', boxSizing: 'border-box', overflow: 'hidden' }}>
+      <header style={{ textAlign: 'center', flexShrink: 0 }}>
+        <h1 style={{ margin: '0 0 4px 0' }}>Lead Scrapper</h1>
+        <p style={{ color: '#94a3b8', fontSize: '1.1em', margin: '0 0 12px 0' }}>Intelligent Business Lead Generation</p>
       </header>
 
-      <div style={{ display: 'flex', gap: '32px', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', gap: '24px', flex: 1, minHeight: 0 }}>
         {/* Left Side: Filter Form */}
         <div className="glass-panel" style={{ flex: '0 0 420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0, color: '#ffffff' }}>
@@ -401,8 +401,8 @@ function App() {
         </div>
 
         {/* Results Panel */}
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, padding: '20px', minHeight: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
             <div>
               <h2 style={{ margin: 0 }}>Leads Found ({leads.length})</h2>
               {skippedCount > 0 && <p style={{ margin: '4px 0 0 0', fontSize: '0.85em', color: '#f59e0b' }}>Skipped {skippedCount} companies missing mandatory Email/Phone</p>}
@@ -410,7 +410,7 @@ function App() {
 
           </div>
 
-          <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '650px', marginTop: '16px', flex: 1 }}>
+          <div style={{ overflowX: 'auto', overflowY: 'auto', marginTop: '12px', flex: 1, minHeight: 0 }}>
             <table>
               <thead>
                 <tr>
