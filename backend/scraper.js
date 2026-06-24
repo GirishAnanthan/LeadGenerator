@@ -142,16 +142,15 @@ async function scrapeGoogleSearch(browser, query, existingUrls, onStatusUpdate, 
   return results;
 }
 
-async function scrapeGoogleSearchPaginated(browser, query, existingUrls, onStatusUpdate, isCancelledFn) {
-  let searchPage;
-  const allResults = [];
+async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn) {
+  let searchPage, webPage;
   const seenUrls = new Set();
   let page = 0;
   let consecutiveEmpty = 0;
+  let totalVisited = 0;
   try {
     while (!isCancelledFn()) {
       page++;
-      onStatusUpdate(`Google Search page ${page} for: ${query.substring(0, 60)}...`);
       
       searchPage = await browser.newPage();
       await searchPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
@@ -184,30 +183,71 @@ async function scrapeGoogleSearchPaginated(browser, query, existingUrls, onStatu
       }
       consecutiveEmpty = 0;
 
+      await searchPage.close();
+      searchPage = null;
+
+      // Visit each unique URL from this page immediately
       for (const link of links) {
+        if (isCancelledFn()) break;
         try {
           const urlObj = new URL(link.url);
           const domain = urlObj.hostname.replace('www.', '');
-          if (!IGNORED_DOMAINS.includes(domain) && !existingUrls.has(domain) && !seenUrls.has(link.url)) {
-            allResults.push(link);
-            existingUrls.add(domain);
-            seenUrls.add(link.url);
+          if (IGNORED_DOMAINS.includes(domain) || existingDomains.has(domain) || seenUrls.has(link.url)) continue;
+          existingDomains.add(domain);
+          seenUrls.add(link.url);
+        } catch (e) { continue; }
+
+        totalVisited++;
+        onStatusUpdate(`Search page ${page} result ${totalVisited}: ${link.title.substring(0, 50)}...`);
+        
+        try {
+          webPage = await browser.newPage();
+          await webPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+          await webPage.goto(link.url, { waitUntil: 'networkidle2', timeout: 20000 });
+          
+          const webData = await webPage.evaluate(() => {
+            let emails = [], socials = [], phone = '';
+            document.querySelectorAll('a[href^="mailto:"]').forEach(a => { let m = a.getAttribute('href').replace('mailto:', '').split('?')[0].trim(); if (m) emails.push(m); });
+            document.querySelectorAll('a[href^="tel:"]').forEach(a => { let p = a.getAttribute('href').replace('tel:', '').trim(); if (p) phone = p; });
+            const text = document.body.innerText || '';
+            const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
+            const m = text.match(emailRegex); if (m) emails.push(...m);
+            if (!phone) { const pr = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g; const pm = text.match(pr); if (pm) phone = pm[0]; }
+            document.querySelectorAll('a').forEach(a => { const h = a.href || ''; if (h.match(/linkedin\.com|facebook\.com|twitter\.com|instagram\.com/i)) socials.push(h.split('?')[0]); });
+            let desc = ''; const md = document.querySelector('meta[name="description"]'); if (md) desc = md.content;
+            return { emails: [...new Set(emails)], socials: [...new Set(socials)], description: desc.trim(), phone };
+          });
+          await webPage.close();
+          webPage = null;
+
+          let domain = ''; try { domain = new URL(link.url).hostname.replace('www.', ''); } catch(e) {}
+          let contactPerson = '';
+          if (domain) {
+            const dmList = await findDecisionMakers(browser, link.title, domain);
+            if (dmList && dmList.length > 0) contactPerson = dmList.map(d => `${d.name} (${d.title}):\n${d.emails.join(', ')}`).join('\n\n');
           }
-        } catch (e) {}
+          
+          onLeadFound({
+            companyName: link.title.split(/ - | \| /)[0].trim(),
+            address: '', contactPerson: contactPerson || '', mobileNumber: '',
+            landlineNumber: webData.phone || '',
+            emailId: webData.emails.length > 0 ? webData.emails.join(', ') : '',
+            website: link.url || '', socials: webData.socials.length > 0 ? webData.socials.join(', ') : '',
+            description: webData.description || ''
+          });
+        } catch (e) { console.log(`Failed to process ${link.url}: ${e.message}`); }
+        finally { if (webPage) await webPage.close().catch(() => {}); }
       }
       
-      await searchPage.close();
-      searchPage = null;
-      
-      if (links.length < 10 && consecutiveEmpty === 0) break;
+      if (links.length < 10) break;
       await new Promise(r => setTimeout(r, 1500));
     }
   } catch (err) {
     console.log(`Paginated Google Search failed: ${err.message}`);
   } finally {
     if (searchPage) await searchPage.close().catch(() => {});
+    if (webPage) await webPage.close().catch(() => {});
   }
-  return allResults;
 }
 
 async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, countryCode, maxScrolls = 50) {
@@ -1247,37 +1287,7 @@ async function scrapeLeads({ countryCode, country, state, city, industry, search
       // --- Phase 3: Google Search (base query, unlimited pages) ---
       if (!isCancelledFn()) {
         onStatusUpdate('Google Search (base query, all pages)...');
-        const searchResults = await scrapeGoogleSearchPaginated(browser, query, existingDomains, onStatusUpdate, isCancelledFn);
-        onStatusUpdate(`Found ${searchResults.length} websites. Extracting contacts...`);
-        for (const res of searchResults) {
-          if (isCancelledFn()) break;
-          onStatusUpdate(`Checking: ${res.title}...`);
-          try {
-            const webPage = await browser.newPage();
-            await webPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-            await webPage.goto(res.url, { waitUntil: 'networkidle2', timeout: 20000 });
-            const webData = await webPage.evaluate(() => {
-              let emails = [], socials = [], phone = '';
-              document.querySelectorAll('a[href^="mailto:"]').forEach(a => { let mail = a.getAttribute('href').replace('mailto:', '').split('?')[0].trim(); if (mail) emails.push(mail); });
-              document.querySelectorAll('a[href^="tel:"]').forEach(a => { let p = a.getAttribute('href').replace('tel:', '').trim(); if (p) phone = p; });
-              const text = document.body.innerText || '';
-              const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
-              const matches = text.match(emailRegex); if (matches) emails.push(...matches);
-              if (!phone) { const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g; const pMatches = text.match(phoneRegex); if (pMatches) phone = pMatches[0]; }
-              document.querySelectorAll('a').forEach(a => { const href = a.href || ''; if (href.match(/linkedin\.com|facebook\.com|twitter\.com|instagram\.com/i)) socials.push(href.split('?')[0]); });
-              let description = ''; const metaDesc = document.querySelector('meta[name="description"]'); if (metaDesc) description = metaDesc.content;
-              return { emails: [...new Set(emails)], socials: [...new Set(socials)], description: description.trim(), phone };
-            });
-            await webPage.close();
-            let domain = ''; try { domain = new URL(res.url).hostname.replace('www.', ''); } catch(e) {}
-            let contactPerson = '';
-            if (domain) {
-              const dmList = await findDecisionMakers(browser, res.title, domain);
-              if (dmList && dmList.length > 0) contactPerson = dmList.map(dm => `${dm.name} (${dm.title}):\n${dm.emails.join(', ')}`).join('\n\n');
-            }
-            onLeadFound({ companyName: res.title.split(/ - | \| /)[0].trim(), address: '', contactPerson: contactPerson || '', mobileNumber: '', landlineNumber: webData.phone || '', emailId: webData.emails.length > 0 ? webData.emails.join(', ') : '', website: res.url || '', socials: webData.socials.length > 0 ? webData.socials.join(', ') : '', description: webData.description || '' });
-          } catch (e) { console.log(`Failed to process ${res.url}: ${e.message}`); }
-        }
+        await scrapeGoogleSearchPaginated(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn);
       }
     }
 
@@ -1301,36 +1311,7 @@ async function scrapeLeads({ countryCode, country, state, city, industry, search
           if (isCancelledFn()) break;
           const sq = searchVariations[qi];
           onStatusUpdate(`Variation ${qi + 2}/${searchVariations.length + 1}: ${sq.substring(0, 80)}...`);
-          const varResults = await scrapeGoogleSearchPaginated(browser, sq, existingDomains, onStatusUpdate, isCancelledFn);
-          for (const res of varResults) {
-            if (isCancelledFn()) break;
-            onStatusUpdate(`Checking: ${res.title}...`);
-            try {
-              const webPage = await browser.newPage();
-              await webPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-              await webPage.goto(res.url, { waitUntil: 'networkidle2', timeout: 20000 });
-              const webData = await webPage.evaluate(() => {
-                let emails = [], socials = [], phone = '';
-                document.querySelectorAll('a[href^="mailto:"]').forEach(a => { let mail = a.getAttribute('href').replace('mailto:', '').split('?')[0].trim(); if (mail) emails.push(mail); });
-                document.querySelectorAll('a[href^="tel:"]').forEach(a => { let p = a.getAttribute('href').replace('tel:', '').trim(); if (p) phone = p; });
-                const text = document.body.innerText || '';
-                const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
-                const matches = text.match(emailRegex); if (matches) emails.push(...matches);
-                if (!phone) { const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g; const pMatches = text.match(phoneRegex); if (pMatches) phone = pMatches[0]; }
-                document.querySelectorAll('a').forEach(a => { const href = a.href || ''; if (href.match(/linkedin\.com|facebook\.com|twitter\.com|instagram\.com/i)) socials.push(href.split('?')[0]); });
-                let description = ''; const metaDesc = document.querySelector('meta[name="description"]'); if (metaDesc) description = metaDesc.content;
-                return { emails: [...new Set(emails)], socials: [...new Set(socials)], description: description.trim(), phone };
-              });
-              await webPage.close();
-              let domain = ''; try { domain = new URL(res.url).hostname.replace('www.', ''); } catch(e) {}
-              let contactPerson = '';
-              if (domain) {
-                const dmList = await findDecisionMakers(browser, res.title, domain);
-                if (dmList && dmList.length > 0) contactPerson = dmList.map(dm => `${dm.name} (${dm.title}):\n${dm.emails.join(', ')}`).join('\n\n');
-              }
-              onLeadFound({ companyName: res.title.split(/ - | \| /)[0].trim(), address: '', contactPerson: contactPerson || '', mobileNumber: '', landlineNumber: webData.phone || '', emailId: webData.emails.length > 0 ? webData.emails.join(', ') : '', website: res.url || '', socials: webData.socials.length > 0 ? webData.socials.join(', ') : '', description: webData.description || '' });
-            } catch (e) { console.log(`Failed to process ${res.url}: ${e.message}`); }
-          }
+          await scrapeGoogleSearchPaginated(browser, sq, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn);
         }
       }
 
