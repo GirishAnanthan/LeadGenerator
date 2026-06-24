@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: leadscrapper-api
+    runtime: node
+    repo: https://github.com/GirishAnanthan/LeadGenerator
+    region: oregon
+    plan: free
+    buildCommand: cd backend && npm ci
+    startCommand: cd backend && node --max-old-space-size=256 server.js
+    healthCheckPath: /api/scrape
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        value: https://leadscrapper.onrender.com,https://leadscrapper.vercel.app
+      - key: VIBE_API_KEY
+        sync: false
+
+  - type: static
+    name: leadscrapper-ui
+    runtime: static
+    repo: https://github.com/GirishAnanthan/LeadGenerator
+    region: oregon
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://leadscrapper-api.onrender.com

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Building, Activity, Download, XCircle } from 'lucide-react';
+import { Search, MapPin, Building, Activity, Download, XCircle, AlertTriangle } from 'lucide-react';
 import Select from 'react-select';
-import { Country, State, City } from 'country-state-city';
+import { Country, State } from 'country-state-city';
+import ErrorBoundary from './ErrorBoundary';
 import './index.css';
 
 // Predefined big commercial and industrial segments
@@ -66,25 +67,21 @@ const customStyles = {
       backgroundColor: 'rgba(212, 175, 55, 0.4)'
     }
   }),
-  placeholder: (provided) => ({ ...provided, fontSize: '0.85em' }),
-  singleValue: (provided) => ({ ...provided, color: '#ffffff', fontSize: '0.85em' }),
+  placeholder: (provided) => ({ ...provided, fontSize: '0.85em', color: '#64748b' }),
   singleValue: (provided) => ({
     ...provided,
     color: '#ffffff',
+    fontSize: '0.85em',
     fontWeight: 500
   }),
   input: (provided) => ({
     ...provided,
     color: '#ffffff'
-  }),
-  placeholder: (provided) => ({
-    ...provided,
-    color: '#64748b'
   })
 };
 
-function App() {
-  const [countries, setCountries] = useState([]);
+function AppContent() {
+  const [countries] = useState(() => Country.getAllCountries());
   const [states, setStates] = useState([]);
 
   const [selectedCountry, setSelectedCountry] = useState('');
@@ -100,11 +97,36 @@ function App() {
   const [isScraping, setIsScraping] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [tabHidden, setTabHidden] = useState(false);
+  const [validationError, setValidationError] = useState('');
   const abortControllerRef = useRef(null);
+  const leadsMapRef = useRef(new Map());
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const leadsPerPage = 50;
+  const totalPages = Math.ceil(leads.length / leadsPerPage);
+  const displayLeads = leads.slice((currentPage - 1) * leadsPerPage, currentPage * leadsPerPage);
 
   useEffect(() => {
-    setCountries(Country.getAllCountries());
+    try {
+      const saved = localStorage.getItem('leads');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setLeads(parsed);
+          const map = new Map();
+          parsed.forEach(l => map.set(l.companyName, l));
+          leadsMapRef.current = map;
+        }
+      }
+    } catch { /* ignore bad localStorage data */ }
   }, []);
+
+  useEffect(() => {
+    if (leads.length > 0) {
+      try { localStorage.setItem('leads', JSON.stringify(leads)); } catch { /* quota exceeded */ }
+    }
+  }, [leads]);
 
   // Warn when tab goes to background — browser throttles streaming in hidden tabs
   useEffect(() => {
@@ -141,20 +163,23 @@ function App() {
   const startSearch = async (append = false) => {
     const finalIndustry = customIndustry || industry;
     if (!finalIndustry || !selectedCountry) {
-      alert("Please select at least a Country and an Industry.");
+      setValidationError('Please select at least a Country and an Industry.');
       return;
     }
+    setValidationError('');
 
     setIsScraping(true);
     if (!append) {
+      leadsMapRef.current = new Map();
       setLeads([]);
+      setCurrentPage(1);
       setSkippedCount(0);
     }
     setStatusMsg('Connecting to scraping server...');
 
     try {
       abortControllerRef.current = new AbortController();
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://tidy-parrots-return.loca.lt';
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       const response = await fetch(`${API_BASE_URL}/api/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -196,10 +221,11 @@ function App() {
                     setSkippedCount(prev => prev + 1);
                   }
                 } else if (eventType === 'lead') {
-                  setLeads(prev => {
-                    if (prev.some(l => l.companyName === data.companyName)) return prev;
-                    return [...prev, { ...data, industry: finalIndustry }];
-                  });
+                  const map = leadsMapRef.current;
+                  if (!map.has(data.companyName)) {
+                    map.set(data.companyName, { ...data, industry: finalIndustry });
+                    setLeads(Array.from(map.values()));
+                  }
                 } else if (eventType === 'error') {
                   setStatusMsg('Error: ' + data.message);
                   setIsScraping(false);
@@ -350,11 +376,22 @@ function App() {
             <button onClick={exportToCSV} disabled={leads.length === 0} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', background: 'transparent', border: '1px solid #94a3b8', color: '#e2e8f0', boxShadow: 'none', cursor: leads.length === 0 ? 'not-allowed' : 'pointer', opacity: leads.length === 0 ? 0.6 : 1, padding: '0.5em 0.8em', fontSize: '0.8em' }}>
               <Download size={12} /> Export CSV
             </button>
+            {leads.length > 0 && (
+              <button onClick={() => { leadsMapRef.current = new Map(); setLeads([]); localStorage.removeItem('leads'); setCurrentPage(1); }} style={{ flex: '0 0 auto', background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', boxShadow: 'none', padding: '0.5em 0.8em', fontSize: '0.8em' }}>
+                <XCircle size={12} /> Clear All
+              </button>
+            )}
           </div>
 
           {tabHidden && isScraping && (
             <div style={{ padding: '4px 6px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px', border: '1px solid #ef4444' }}>
               <small style={{ color: '#ef4444', fontSize: '0.75em' }}>⚠ Tab in background — scraping continues but results will appear when you switch back</small>
+            </div>
+          )}
+          {validationError && (
+            <div style={{ padding: '4px 6px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px', border: '1px solid #ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <AlertTriangle size={12} color="#ef4444" />
+              <small style={{ color: '#ef4444', fontSize: '0.75em' }}>{validationError}</small>
             </div>
           )}
           {statusMsg && (
@@ -397,8 +434,8 @@ function App() {
                     </td>
                   </tr>
                 ) : (
-                  leads.map((lead, i) => (
-                    <tr key={i}>
+                  displayLeads.map((lead, i) => (
+                    <tr key={(currentPage - 1) * leadsPerPage + i}>
                       <td style={{ fontWeight: 600, color: '#ffffff' }}>{lead.companyName}</td>
                       <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.industry}>
                         {lead.industry || <div style={{ textAlign: 'center' }}>-</div>}
@@ -431,6 +468,17 @@ function App() {
                 )}
               </tbody>
             </table>
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', padding: '8px 0', flexShrink: 0 }}>
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} style={{ padding: '4px 12px', fontSize: '0.8em', background: 'transparent', border: '1px solid #d4af37', color: '#d4af37', borderRadius: '3px', cursor: currentPage <= 1 ? 'not-allowed' : 'pointer', opacity: currentPage <= 1 ? 0.5 : 1 }}>
+                  Prev
+                </button>
+                <span style={{ color: '#94a3b8', fontSize: '0.85em' }}>Page {currentPage} of {totalPages}</span>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} style={{ padding: '4px 12px', fontSize: '0.8em', background: 'transparent', border: '1px solid #d4af37', color: '#d4af37', borderRadius: '3px', cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer', opacity: currentPage >= totalPages ? 0.5 : 1 }}>
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -438,4 +486,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
+  );
+}
