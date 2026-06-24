@@ -39,7 +39,7 @@ const customStyles = {
     borderColor: state.isFocused ? '#d4af37' : 'rgba(255,255,255,0.1)',
     color: '#ffffff',
     borderRadius: '4px',
-    marginBottom: '16px',
+    minHeight: '28px',
     padding: '2px',
     boxShadow: state.isFocused ? '0 0 0 2px rgba(212, 175, 55, 0.2)' : 'none',
     transition: 'all 0.3s ease',
@@ -53,18 +53,21 @@ const customStyles = {
     border: '1px solid #d4af37',
     borderRadius: '4px',
     boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-    zIndex: 100
+    zIndex: 100,
+    fontSize: '0.85em'
   }),
   option: (provided, state) => ({
     ...provided,
     backgroundColor: state.isFocused ? 'rgba(212, 175, 55, 0.2)' : 'transparent',
     color: state.isFocused ? '#f1cf65' : '#ffffff',
     cursor: 'pointer',
-    padding: '10px 14px',
+    padding: '6px 10px',
     '&:active': {
       backgroundColor: 'rgba(212, 175, 55, 0.4)'
     }
   }),
+  placeholder: (provided) => ({ ...provided, fontSize: '0.85em' }),
+  singleValue: (provided) => ({ ...provided, color: '#ffffff', fontSize: '0.85em' }),
   singleValue: (provided) => ({
     ...provided,
     color: '#ffffff',
@@ -266,151 +269,112 @@ function App() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '16px 20px', boxSizing: 'border-box', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '6px 12px', boxSizing: 'border-box', overflow: 'hidden' }}>
       <header style={{ textAlign: 'center', flexShrink: 0 }}>
-        <h1 style={{ margin: '0 0 4px 0' }}>Lead Scrapper</h1>
-        <p style={{ color: '#94a3b8', fontSize: '1.1em', margin: '0 0 12px 0' }}>Intelligent Business Lead Generation</p>
+        <h1 style={{ margin: 0, fontSize: '1.8em' }}>Lead Scrapper</h1>
+        <p style={{ color: '#94a3b8', fontSize: '0.9em', margin: 0 }}>Intelligent Business Lead Generation</p>
       </header>
 
-      <div style={{ display: 'flex', gap: '24px', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', gap: '12px', flex: 1, minHeight: 0 }}>
         {/* Left Side: Filter Form */}
-        <div className="glass-panel" style={{ flex: '0 0 420px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0, color: '#ffffff' }}>
-            <MapPin size={20} color="#d4af37" /> Location Setup
+        <div className="glass-panel" style={{ flex: '0 0 380px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto', minHeight: 0, padding: '12px' }}>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '4px', margin: 0, color: '#ffffff', fontSize: '0.85em' }}>
+            <MapPin size={14} color="#d4af37" /> Location Setup
           </h2>
 
-          <label>Country</label>
-          <Select
-            styles={customStyles}
-            options={countries.map(c => ({ value: c.isoCode, label: c.name }))}
-            value={selectedCountryCode ? { value: selectedCountryCode, label: selectedCountry } : null}
-            onChange={handleCountryChange}
-            placeholder="-- Select or Search Country --"
-            isClearable
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <label style={{ fontSize: '0.8em', color: '#94a3b8' }}>Country</label>
+            <Select styles={customStyles} options={countries.map(c => ({ value: c.isoCode, label: c.name }))} value={selectedCountryCode ? { value: selectedCountryCode, label: selectedCountry } : null} onChange={handleCountryChange} placeholder="-- Select or Search Country --" isClearable />
+          </div>
 
-          <label>State / Province</label>
-          <Select
-            styles={customStyles}
-            options={states.map(s => ({ value: s.name, label: s.name }))}
-            value={selectedState ? { value: selectedState, label: selectedState } : null}
-            onChange={handleStateChange}
-            placeholder="-- Select or Search State --"
-            isDisabled={!selectedCountryCode}
-            isClearable
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <label style={{ fontSize: '0.8em', color: '#94a3b8' }}>State / Province</label>
+            <Select styles={customStyles} options={states.map(s => ({ value: s.name, label: s.name }))} value={selectedState ? { value: selectedState, label: selectedState } : null} onChange={handleStateChange} placeholder="-- Select or Search State --" isDisabled={!selectedCountryCode} isClearable />
+          </div>
 
-          <label>City / Area (Optional)</label>
-          <input
-            type="text"
-            placeholder="e.g. San Francisco, London..."
-            value={selectedCity}
-            onChange={(e) => setSelectedCity(e.target.value)}
-            disabled={!selectedState && !selectedCountry}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <label style={{ fontSize: '0.8em', color: '#94a3b8' }}>City / Area (Optional)</label>
+            <input type="text" placeholder="e.g. San Francisco, London..." value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)} disabled={!selectedState && !selectedCountry} />
+          </div>
 
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '32px', color: '#ffffff' }}>
-            <Building size={20} color="#d4af37" /> Industry Segment
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '4px', margin: '6px 0 0 0', color: '#ffffff', fontSize: '0.85em' }}>
+            <Building size={14} color="#d4af37" /> Industry Segment
           </h2>
 
-          <label>Predefined Segment {selectedCity ? `for ${selectedCity}` : selectedState ? `for ${selectedState}` : ''}</label>
-          <Select
-            styles={customStyles}
-            options={INDUSTRY_SEGMENTS.map(ind => ({ value: ind, label: ind }))}
-            value={industry ? { value: industry, label: industry } : null}
-            onChange={(selectedOption) => { setIndustry(selectedOption ? selectedOption.value : ''); setCustomIndustry(''); }}
-            placeholder="-- Select or Search Segment --"
-            isClearable
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <label style={{ fontSize: '0.8em', color: '#94a3b8' }}>Predefined Segment {selectedCity ? `for ${selectedCity}` : selectedState ? `for ${selectedState}` : ''}</label>
+            <Select styles={customStyles} options={INDUSTRY_SEGMENTS.map(ind => ({ value: ind, label: ind }))} value={industry ? { value: industry, label: industry } : null} onChange={(selectedOption) => { setIndustry(selectedOption ? selectedOption.value : ''); setCustomIndustry(''); }} placeholder="-- Select or Search Segment --" isClearable />
+          </div>
 
-          <label>Or Type Custom Industry</label>
-          <input
-            type="text"
-            placeholder="e.g. Solar Panel Installers"
-            value={customIndustry}
-            onChange={(e) => { setCustomIndustry(e.target.value); setIndustry(''); }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <label style={{ fontSize: '0.8em', color: '#94a3b8' }}>Or Type Custom Industry</label>
+            <input type="text" placeholder="e.g. Solar Panel Installers" value={customIndustry} onChange={(e) => { setCustomIndustry(e.target.value); setIndustry(''); }} />
+          </div>
 
-          <div style={{ marginTop: '24px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', color: '#ffffff', fontSize: '1.1em' }}>
-              <Activity size={20} color="#d4af37" /> Search Depth
+          <div style={{ marginTop: '4px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px', color: '#ffffff', fontSize: '0.85em' }}>
+              <Activity size={14} color="#d4af37" /> Search Depth
             </label>
-            <div style={{ display: 'flex', flexDirection: 'row', gap: '12px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#94a3b8', fontSize: '1.15em', cursor: 'pointer', padding: '8px 14px', borderRadius: '6px', background: searchDepth === 'fast' ? 'rgba(212, 175, 55, 0.15)' : 'transparent', flex: 1, justifyContent: 'center' }}>
-                <input type="radio" name="searchDepth" value="fast" checked={searchDepth === 'fast'} onChange={() => setSearchDepth('fast')} style={{ accentColor: '#d4af37', width: '18px', height: '18px', cursor: 'pointer' }} />
-                <span><strong style={{ color: '#22c55e' }}>Fast</strong></span>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8', fontSize: '0.85em', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', background: searchDepth === 'fast' ? 'rgba(212, 175, 55, 0.15)' : 'transparent', flex: 1, justifyContent: 'center' }}>
+                <input type="radio" name="searchDepth" value="fast" checked={searchDepth === 'fast'} onChange={() => setSearchDepth('fast')} style={{ accentColor: '#d4af37', width: '14px', height: '14px', cursor: 'pointer', margin: 0 }} />
+                <span><strong style={{ color: '#22c55e', fontSize: '0.85em' }}>Fast</strong></span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#94a3b8', fontSize: '1.15em', cursor: 'pointer', padding: '8px 14px', borderRadius: '6px', background: searchDepth === 'medium' ? 'rgba(212, 175, 55, 0.15)' : 'transparent', flex: 1, justifyContent: 'center' }}>
-                <input type="radio" name="searchDepth" value="medium" checked={searchDepth === 'medium'} onChange={() => setSearchDepth('medium')} style={{ accentColor: '#d4af37', width: '18px', height: '18px', cursor: 'pointer' }} />
-                <span><strong style={{ color: '#f59e0b' }}>Medium</strong></span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8', fontSize: '0.85em', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', background: searchDepth === 'medium' ? 'rgba(212, 175, 55, 0.15)' : 'transparent', flex: 1, justifyContent: 'center' }}>
+                <input type="radio" name="searchDepth" value="medium" checked={searchDepth === 'medium'} onChange={() => setSearchDepth('medium')} style={{ accentColor: '#d4af37', width: '14px', height: '14px', cursor: 'pointer', margin: 0 }} />
+                <span><strong style={{ color: '#f59e0b', fontSize: '0.85em' }}>Medium</strong></span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#94a3b8', fontSize: '1.15em', cursor: 'pointer', padding: '8px 14px', borderRadius: '6px', background: searchDepth === 'deep' ? 'rgba(212, 175, 55, 0.15)' : 'transparent', flex: 1, justifyContent: 'center' }}>
-                <input type="radio" name="searchDepth" value="deep" checked={searchDepth === 'deep'} onChange={() => setSearchDepth('deep')} style={{ accentColor: '#d4af37', width: '18px', height: '18px', cursor: 'pointer' }} />
-                <span><strong style={{ color: '#ef4444' }}>Deep</strong></span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8', fontSize: '0.85em', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', background: searchDepth === 'deep' ? 'rgba(212, 175, 55, 0.15)' : 'transparent', flex: 1, justifyContent: 'center' }}>
+                <input type="radio" name="searchDepth" value="deep" checked={searchDepth === 'deep'} onChange={() => setSearchDepth('deep')} style={{ accentColor: '#d4af37', width: '14px', height: '14px', cursor: 'pointer', margin: 0 }} />
+                <span><strong style={{ color: '#ef4444', fontSize: '0.85em' }}>Deep</strong></span>
               </label>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-            <button
-              style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
-              onClick={() => startSearch(false)}
-              disabled={isScraping || !selectedCountry || (!industry && !customIndustry)}
-            >
-              {isScraping ? <Activity className="animate-pulse" /> : <Search />}
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '0.5em 0.8em', fontSize: '0.8em' }} onClick={() => startSearch(false)} disabled={isScraping || !selectedCountry || (!industry && !customIndustry)}>
+              {isScraping ? <Activity className="animate-pulse" size={12} /> : <Search size={12} />}
               {isScraping ? 'Scraping...' : 'Start Search'}
             </button>
-
             {isScraping && (
-              <button
-                style={{ flex: '0 0 auto', background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', display: 'flex', gap: '8px', alignItems: 'center' }}
-                onClick={cancelSearch}
-              >
-                <XCircle size={16} /> Cancel
+              <button style={{ flex: '0 0 auto', background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', display: 'flex', gap: '4px', alignItems: 'center', padding: '0.5em 0.8em', fontSize: '0.8em' }} onClick={cancelSearch}>
+                <XCircle size={12} /> Cancel
               </button>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-            <button
-              onClick={() => startSearch(true)}
-              disabled={isScraping}
-              style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid #d4af37', color: '#d4af37', boxShadow: 'none' }}
-            >
-              <Search size={16} /> Add to Existing List
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button onClick={() => startSearch(true)} disabled={isScraping} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', background: 'transparent', border: '1px solid #d4af37', color: '#d4af37', boxShadow: 'none', padding: '0.5em 0.8em', fontSize: '0.8em' }}>
+              <Search size={12} /> Add to Existing List
             </button>
-            <button
-              onClick={exportToCSV}
-              disabled={leads.length === 0}
-              style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid #94a3b8', color: '#e2e8f0', boxShadow: 'none', cursor: leads.length === 0 ? 'not-allowed' : 'pointer', opacity: leads.length === 0 ? 0.6 : 1 }}
-            >
-              <Download size={16} /> Export CSV
+            <button onClick={exportToCSV} disabled={leads.length === 0} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', background: 'transparent', border: '1px solid #94a3b8', color: '#e2e8f0', boxShadow: 'none', cursor: leads.length === 0 ? 'not-allowed' : 'pointer', opacity: leads.length === 0 ? 0.6 : 1, padding: '0.5em 0.8em', fontSize: '0.8em' }}>
+              <Download size={12} /> Export CSV
             </button>
           </div>
 
           {tabHidden && isScraping && (
-            <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px', border: '1px solid #ef4444' }}>
-              <small style={{ color: '#ef4444' }}>⚠ Tab in background — scraping continues but results will appear when you switch back</small>
+            <div style={{ padding: '4px 6px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px', border: '1px solid #ef4444' }}>
+              <small style={{ color: '#ef4444', fontSize: '0.75em' }}>⚠ Tab in background — scraping continues but results will appear when you switch back</small>
             </div>
           )}
           {statusMsg && (
-            <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(212, 175, 55, 0.1)', borderRadius: '4px', border: '1px solid rgba(212, 175, 55, 0.3)' }}>
-              <small style={{ color: '#e2e8f0' }}>{statusMsg}</small>
+            <div style={{ padding: '4px 6px', background: 'rgba(212, 175, 55, 0.1)', borderRadius: '4px', border: '1px solid rgba(212, 175, 55, 0.3)' }}>
+              <small style={{ color: '#e2e8f0', fontSize: '0.75em' }}>{statusMsg}</small>
             </div>
           )}
         </div>
 
         {/* Results Panel */}
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, padding: '20px', minHeight: 0 }}>
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, padding: '12px', minHeight: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
             <div>
-              <h2 style={{ margin: 0 }}>Leads Found ({leads.length})</h2>
-              {skippedCount > 0 && <p style={{ margin: '4px 0 0 0', fontSize: '0.85em', color: '#f59e0b' }}>Skipped {skippedCount} companies missing mandatory Email/Phone</p>}
+              <h2 style={{ margin: 0, fontSize: '1em' }}>Leads Found ({leads.length})</h2>
+              {skippedCount > 0 && <p style={{ margin: 0, fontSize: '0.75em', color: '#f59e0b' }}>Skipped {skippedCount} companies missing mandatory Email/Phone</p>}
             </div>
 
           </div>
 
-          <div style={{ overflowX: 'auto', overflowY: 'auto', marginTop: '12px', flex: 1, minHeight: 0 }}>
+          <div style={{ overflowX: 'auto', overflowY: 'auto', marginTop: '6px', flex: 1, minHeight: 0 }}>
             <table>
               <thead>
                 <tr>
@@ -428,7 +392,7 @@ function App() {
               <tbody>
                 {leads.length === 0 ? (
                   <tr>
-                    <td colSpan="10" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                    <td colSpan="10" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
                       {isScraping ? 'Searching the web for matches...' : 'No leads generated yet. Start a search!'}
                     </td>
                   </tr>
