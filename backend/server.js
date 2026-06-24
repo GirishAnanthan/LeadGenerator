@@ -12,8 +12,10 @@ let currentBrowser = null;
 app.use(helmet());
 
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:5173'],
-  methods: ['POST'],
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+    : ['http://localhost:5173', 'http://localhost:4173'],
+  methods: ['GET', 'POST'],
   maxAge: 86400,
 }));
 
@@ -55,6 +57,14 @@ function validateInput(body) {
   }
   return errors;
 }
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+app.get('/api/scrape', (req, res) => {
+  res.status(400).json({ error: 'Use POST to submit a scrape request' });
+});
 
 app.post('/api/scrape', scrapeLimiter, async (req, res) => {
   const validationErrors = validateInput(req.body);

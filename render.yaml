@@ -7,12 +7,12 @@ services:
     plan: free
     buildCommand: cd backend && npm ci
     startCommand: cd backend && node --max-old-space-size=256 server.js
-    healthCheckPath: /api/scrape
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGIN
-        value: https://leadscrapper.onrender.com,https://leadscrapper.vercel.app
+        value: https://leadscrapper.onrender.com,https://leadscrapper.vercel.app,http://localhost:5173,http://localhost:4173
       - key: VIBE_API_KEY
         sync: false
 
