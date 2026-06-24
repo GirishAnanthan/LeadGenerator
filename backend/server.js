@@ -15,23 +15,33 @@ app.post('/api/scrape', async (req, res) => {
     return res.status(400).json({ error: 'Industry is required' });
   }
 
-  // To support server-sent events for real-time updates as we scrape
+  // Disable idle timeout so background tabs don't kill the connection
+  req.setTimeout(0);
+  res.setTimeout(0);
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   
   const sendEvent = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch(e) {}
   };
+
+  let isCancelled = false;
+  let keepaliveTimer;
+  res.on('close', () => {
+    isCancelled = true;
+    if (keepaliveTimer) clearInterval(keepaliveTimer);
+  });
+
+  // Keepalive ping every 10s to prevent connection drop when tab is backgrounded
+  keepaliveTimer = setInterval(() => {
+    try { res.write(':keepalive\n\n'); } catch(e) { clearInterval(keepaliveTimer); }
+  }, 10000);
 
   try {
     sendEvent('status', { message: 'Starting browser...' });
     
-    let isCancelled = false;
-    res.on('close', () => {
-      isCancelled = true;
-    });
-
     await scrapeLeads({ countryCode, country, state, city, industry, searchDepth }, (lead) => {
       sendEvent('lead', lead);
     }, (status) => {
@@ -45,6 +55,7 @@ app.post('/api/scrape', async (req, res) => {
     console.error('Scraping error:', error);
     sendEvent('error', { message: error.message || 'An error occurred during scraping' });
   } finally {
+    if (keepaliveTimer) clearInterval(keepaliveTimer);
     res.end();
   }
 });

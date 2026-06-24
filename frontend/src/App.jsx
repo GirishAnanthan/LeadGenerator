@@ -96,11 +96,20 @@ function App() {
   const [skippedCount, setSkippedCount] = useState(0);
   const [isScraping, setIsScraping] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  const [tabHidden, setTabHidden] = useState(false);
   const abortControllerRef = useRef(null);
 
   useEffect(() => {
-    // Load all countries on mount
     setCountries(Country.getAllCountries());
+  }, []);
+
+  // Warn when tab goes to background — browser throttles streaming in hidden tabs
+  useEffect(() => {
+    const handleVisibility = () => {
+      setTabHidden(document.hidden);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
   const handleCountryChange = (selectedOption) => {
@@ -379,6 +388,11 @@ function App() {
             </button>
           </div>
 
+          {tabHidden && isScraping && (
+            <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px', border: '1px solid #ef4444' }}>
+              <small style={{ color: '#ef4444' }}>⚠ Tab in background — scraping continues but results will appear when you switch back</small>
+            </div>
+          )}
           {statusMsg && (
             <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(212, 175, 55, 0.1)', borderRadius: '4px', border: '1px solid rgba(212, 175, 55, 0.3)' }}>
               <small style={{ color: '#e2e8f0' }}>{statusMsg}</small>
