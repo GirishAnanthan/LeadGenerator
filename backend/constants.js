@@ -9,15 +9,16 @@ const IMAGE_EXT_REGEX = /\.(png|jpg|jpeg|gif)$/i;
 const SOCIAL_PATTERNS = [/linkedin\.com/i, /facebook\.com/i, /twitter\.com/i, /instagram\.com/i];
 
 const TIMEOUT = {
-  SHORT: 15000,
-  MEDIUM: 30000,
-  LONG: 45000,
-  EXTRA_LONG: 60000,
+  SHORT: 10000,
+  MEDIUM: 20000,
+  LONG: 30000,
+  EXTRA_LONG: 45000,
 };
 
 const WAIT_STRATEGY = {
   DOM: 'domcontentloaded',
-  NETWORK: 'networkidle2',
+  NETWORK_IDLE: 'networkidle2',
+  NETWORK: 'domcontentloaded',
 };
 
 const IGNORED_DOMAINS = [
@@ -38,16 +39,16 @@ const SEARCH_DEPTH = {
 };
 
 const CONCURRENCY = {
-  HIGH: 2,
-  MEDIUM: 1,
+  HIGH: 3,
+  MEDIUM: 2,
   LOW: 1,
 };
 
 const PAGINATION = {
-  MAX_SCROLLS: 30,
-  MAX_PAGES: 50,
-  SLEEP_MS: 2000,
-  EMPTY_PAGE_LIMIT: 3,
+  MAX_SCROLLS: 12,
+  MAX_PAGES: 20,
+  SLEEP_MS: 800,
+  EMPTY_PAGE_LIMIT: 2,
 };
 
 const RETRY = {

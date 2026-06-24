@@ -48,12 +48,22 @@ async function retryOperation(fn, maxAttempts = RETRY.MAX_ATTEMPTS, baseDelay = 
 }
 
 async function safeGoto(page, url, options = {}) {
-  return retryOperation(async () => {
+  try {
     await page.goto(url, {
       waitUntil: options.waitUntil || WAIT_STRATEGY.NETWORK,
       timeout: options.timeout || TIMEOUT.MEDIUM,
     });
-  }, 2, 500);
+  } catch {
+    // single retry with shorter timeout
+    try {
+      await page.goto(url, {
+        waitUntil: WAIT_STRATEGY.DOM,
+        timeout: TIMEOUT.SHORT,
+      });
+    } catch {
+      // give up
+    }
+  }
 }
 
 async function safeEvaluate(page, fn, ...args) {

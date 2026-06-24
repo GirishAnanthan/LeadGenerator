@@ -9,7 +9,7 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
 
   onStatusUpdate(`Searching Google Maps for: ${query}`);
   await safeGoto(mapsPage, `https://www.google.com/maps/search/${encodeURIComponent(query)}`, {
-    waitUntil: WAIT_STRATEGY.NETWORK,
+    waitUntil: WAIT_STRATEGY.NETWORK_IDLE,
     timeout: TIMEOUT.EXTRA_LONG,
   });
 
@@ -52,6 +52,7 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
         detailPage = await createPage(browser, USER_AGENT);
         await detailPage.setCookie(GOOGLE_CONSENT_COOKIE);
         await safeGoto(detailPage, biz.url, { waitUntil: WAIT_STRATEGY.DOM, timeout: TIMEOUT.SHORT });
+        if (isCancelledFn()) return;
 
         const details = await safeEvaluate(detailPage, () => {
           let phone = '', website = '', address = '', rating = '';
@@ -87,8 +88,9 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
         }) || {};
 
         let contactPerson = '', emails = [], socials = [], description = '';
+        const skipWebsiteVisit = searchDepth === SEARCH_DEPTH.FAST;
 
-        if (details.website) {
+        if (details.website && !skipWebsiteVisit) {
           try { existingDomains.add(extractDomain(details.website)); } catch (e) { /* ignore */ }
           webPage = await createPage(browser, USER_AGENT);
           let siteUrl = details.website;

@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const { SEARCH_DEPTH, CONCURRENCY } = require('./constants');
+const { SEARCH_DEPTH, CONCURRENCY, PAGINATION } = require('./constants');
 const { processConcurrently } = require('./helpers');
 const { scrapeGoogleMapsWithScrolls } = require('./google_maps');
 const { scrapeGoogleSearchPaginated } = require('./google_search');
@@ -91,7 +91,7 @@ async function scrapeLeads(
 
     // Phase 1: Google Maps (all depths)
     onStatusUpdate('Scraping Google Maps for quick results...');
-    await scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, countryCode, 50, searchDepth);
+    await scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, countryCode, PAGINATION.MAX_SCROLLS, searchDepth);
 
     // Phase 2: Google Search (medium + deep)
     if (searchDepth === SEARCH_DEPTH.MEDIUM || searchDepth === SEARCH_DEPTH.DEEP) {
@@ -108,7 +108,7 @@ async function scrapeLeads(
         const altMapQueries = generateQueryVariations(industry, locationStr).slice(1, 5);
         await processConcurrently(altMapQueries, CONCURRENCY.LOW, async (mq) => {
           if (isCancelledFn()) return;
-          await scrapeGoogleMapsWithScrolls(browser, mq, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, countryCode, 50, searchDepth);
+          await scrapeGoogleMapsWithScrolls(browser, mq, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, countryCode, PAGINATION.MAX_SCROLLS, searchDepth);
         });
       }
 
