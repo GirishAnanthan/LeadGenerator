@@ -224,8 +224,23 @@ function AppContent() {
                   const map = leadsMapRef.current;
                   if (!map.has(data.companyName)) {
                     map.set(data.companyName, { ...data, industry: finalIndustry });
-                    setLeads(Array.from(map.values()));
+                  } else {
+                    // Merge enriched data into the existing entry — don't drop the update
+                    const existing = map.get(data.companyName);
+                    const merged = {
+                      ...existing,
+                      address: data.address || existing.address,
+                      mobileNumber: data.mobileNumber || existing.mobileNumber,
+                      landlineNumber: data.landlineNumber || existing.landlineNumber,
+                      emailId: data.emailId || existing.emailId,
+                      contactPerson: data.contactPerson || existing.contactPerson,
+                      socials: data.socials || existing.socials,
+                      website: data.website || existing.website,
+                      description: data.description || existing.description,
+                    };
+                    map.set(data.companyName, merged);
                   }
+                  setLeads(Array.from(map.values()));
                 } else if (eventType === 'error') {
                   setStatusMsg('Error: ' + data.message);
                   setIsScraping(false);

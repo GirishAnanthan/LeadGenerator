@@ -1,8 +1,9 @@
+const { parsePhoneNumber } = require('libphonenumber-js/max');
 const { USER_AGENT, TIMEOUT, WAIT_STRATEGY, IGNORED_DOMAINS, PAGINATION, CONCURRENCY, SEARCH_DEPTH } = require('./constants');
 const { extractDomain, sleep, processConcurrently, createPage, safeEvaluate, safeGoto, splitCompanyName, closePage } = require('./helpers');
 const { findDecisionMakers } = require('./decision_makers');
 
-async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, searchDepth = SEARCH_DEPTH.MEDIUM) {
+async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, searchDepth = SEARCH_DEPTH.MEDIUM, countryCode) {
   let searchPage;
   const seenUrls = new Set();
   let page = 0;
@@ -77,23 +78,10 @@ async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLe
       const snippetMap = {};
       snippets.forEach(s => { snippetMap[s.url] = s.snippet || ''; });
 
-      for (const link of uniqueLinks) {
-        if (isCancelledFn()) break;
-        totalVisited++;
-        const snippet = snippetMap[link.url] || '';
+      // Track which links get enriched via site visits
+      const enrichedUrls = new Set();
 
-        onLeadFound({
-          companyName: splitCompanyName(link.title),
-          address: '',
-          contactPerson: '',
-          mobileNumber: '',
-          landlineNumber: '',
-          emailId: '',
-          website: link.url || '',
-          socials: '',
-          description: snippet,
-        });
-      }
+      totalVisited += uniqueLinks.length;
 
       if (maxSiteVisits > 0 && siteVisits < maxSiteVisits) {
         const visitBatch = uniqueLinks.slice(0, maxSiteVisits - siteVisits);
@@ -108,35 +96,60 @@ async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLe
 
             const webData = await safeEvaluate(webPage, () => {
               let emails = [], socials = [], phone = '';
-              document.querySelectorAll('a[href^="mailto:"]').forEach(a => {
-                const m = a.getAttribute('href').replace('mailto:', '').split('?')[0].trim();
-                if (m) emails.push(m);
-              });
+
+              // Tel links are most reliable
               document.querySelectorAll('a[href^="tel:"]').forEach(a => {
                 const p = a.getAttribute('href').replace('tel:', '').trim();
-                if (p) phone = p;
+                if (p && p.replace(/\D/g, '').length >= 7) phone = p;
               });
-              const text = document.body.innerText || '';
-              const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
-              const m = text.match(emailRegex);
-              if (m) emails.push(...m);
+
+              // Mailto links
+              document.querySelectorAll('a[href^="mailto:"]').forEach(a => {
+                const m = a.getAttribute('href').replace('mailto:', '').split('?')[0].trim();
+                if (m && m.includes('@')) emails.push(m);
+              });
+
+              const text = document.body ? (document.body.innerText || '') : '';
+
+              // Extract emails from page text
+              const emailRegex = /([a-zA-Z0-9._+-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]{2,})/gi;
+              const emailMatches = text.match(emailRegex);
+              if (emailMatches) emails.push(...emailMatches);
+
+              // Phone from visible text (broad: matches Indian & intl formats)
               if (!phone) {
-                const pr = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g;
-                const pm = text.match(pr);
-                if (pm) phone = pm[0];
+                // Indian: +91 9XXXXXXXXX, 9XXXXXXXXX, 0XX-XXXXXXXX
+                const phonePatterns = [
+                  /\+91[\s\-]?[6-9]\d{9}/g,               // Indian mobile with country code
+                  /\b0\d{2,4}[\s\-]?\d{6,8}\b/g,          // Indian landline with STD code
+                  /\b[6-9]\d{9}\b/g,                       // Indian mobile 10 digits
+                  /\+\d{1,3}[\s\-]?\(?\d{2,4}\)?[\s\-]?\d{3,5}[\s\-]?\d{3,5}/g, // International
+                ];
+                for (const pat of phonePatterns) {
+                  const m = text.match(pat);
+                  if (m && m[0]) { phone = m[0].trim(); break; }
+                }
               }
+
+              // Social links
               document.querySelectorAll('a').forEach(a => {
                 const h = a.href || '';
-                if (h.match(/linkedin\.com|facebook\.com|twitter\.com|instagram\.com/i)) socials.push(h.split('?')[0]);
+                if (h.match(/linkedin\.com|facebook\.com|twitter\.com|instagram\.com/i)) {
+                  socials.push(h.split('?')[0]);
+                }
               });
+
               const md = document.querySelector('meta[name="description"]');
               return {
-                emails: [...new Set(emails)],
+                emails: [...new Set(emails.filter(e => e.includes('@') && !e.endsWith('.png') && !e.endsWith('.jpg')))],
                 socials: [...new Set(socials)],
                 description: md ? md.content.trim() : '',
                 phone,
               };
             }) || {};
+
+            // Only mark as enriched if we actually got something useful
+            const hasData = webData.phone || (webData.emails && webData.emails.length > 0);
 
             let contactPerson = '';
             if (!skipDecisionMakers) {
@@ -149,23 +162,59 @@ async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLe
               }
             }
 
+            // Classify phone as mobile or landline using libphonenumber
+            let mobileNumber = '';
+            let landlineNumber = '';
+            if (webData.phone) {
+              try {
+                const parsed = parsePhoneNumber(webData.phone, countryCode || undefined);
+                if (parsed && parsed.isValid()) {
+                  if (parsed.getType() === 'MOBILE') mobileNumber = parsed.formatInternational();
+                  else landlineNumber = parsed.formatInternational();
+                } else {
+                  landlineNumber = webData.phone;
+                }
+              } catch { landlineNumber = webData.phone; }
+            }
+
+            // Always emit the enriched (or attempted) lead for visited pages
+            enrichedUrls.add(link.url);
             onLeadFound({
               companyName: splitCompanyName(link.title),
               address: '',
               contactPerson: contactPerson || '',
-              mobileNumber: '',
-              landlineNumber: webData.phone || '',
-              emailId: webData.emails.length > 0 ? webData.emails.join(', ') : '',
+              mobileNumber,
+              landlineNumber,
+              emailId: (webData.emails && webData.emails.length > 0) ? webData.emails.join(', ') : '',
               website: link.url || '',
-              socials: webData.socials.length > 0 ? webData.socials.join(', ') : '',
-              description: webData.description || '',
+              socials: (webData.socials && webData.socials.length > 0) ? webData.socials.join(', ') : '',
+              description: webData.description || snippetMap[link.url] || '',
             });
           } catch (e) {
             console.log(`Failed to process ${link.url}: ${e.message}`);
+            // Don't add to enrichedUrls so bare lead gets emitted as fallback
           } finally {
             await closePage(webPage);
           }
         });
+      }
+
+      // Emit bare leads for links that were NOT enriched (not visited, or visit threw)
+      for (const link of uniqueLinks) {
+        if (isCancelledFn()) break;
+        if (!enrichedUrls.has(link.url)) {
+          onLeadFound({
+            companyName: splitCompanyName(link.title),
+            address: '',
+            contactPerson: '',
+            mobileNumber: '',
+            landlineNumber: '',
+            emailId: '',
+            website: link.url || '',
+            socials: '',
+            description: snippetMap[link.url] || '',
+          });
+        }
       }
 
       if (links.length < 10) break;

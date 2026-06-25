@@ -62,6 +62,50 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
 
+// Debug endpoint: POST { "url": "https://www.google.com/maps/place/..." }
+// Returns raw extracted phone/address/website from that Maps detail page
+app.post('/api/debug-maps', async (req, res) => {
+  const { url } = req.body;
+  if (!url || !url.includes('google.com/maps')) {
+    return res.status(400).json({ error: 'Provide a Google Maps place URL in body.url' });
+  }
+  const puppeteer = require('puppeteer-extra');
+  const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+  puppeteer.use(StealthPlugin());
+  let browser, page;
+  try {
+    browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    page = await browser.newPage();
+    await page.setUserAgent(require('./constants').USER_AGENT);
+    await page.setCookie(require('./constants').GOOGLE_CONSENT_COOKIE);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await new Promise(r => setTimeout(r, 3000));
+
+    const result = await page.evaluate(() => {
+      const data = { buttons: [], ariaLabels: [], telLinks: [], dataItemIds: [] };
+      document.querySelectorAll('button[data-item-id], a[data-item-id]').forEach(el => {
+        const id = el.getAttribute('data-item-id');
+        const text = el.innerText.trim().substring(0, 100);
+        data.dataItemIds.push({ tag: el.tagName, id, text, href: el.href || '' });
+      });
+      document.querySelectorAll('button[aria-label]').forEach(btn => {
+        data.ariaLabels.push(btn.getAttribute('aria-label'));
+      });
+      document.querySelectorAll('a[href^="tel:"]').forEach(a => {
+        data.telLinks.push(a.href);
+      });
+      return data;
+    });
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    if (page) await page.close().catch(() => {});
+    if (browser) await browser.close().catch(() => {});
+  }
+});
+
+
 app.get('/api/scrape', (req, res) => {
   res.status(400).json({ error: 'Use POST to submit a scrape request' });
 });

@@ -97,7 +97,7 @@ async function scrapeLeads(
     if (searchDepth === SEARCH_DEPTH.MEDIUM || searchDepth === SEARCH_DEPTH.DEEP) {
       if (!isCancelledFn()) {
         onStatusUpdate('Google Search (base query, all pages)...');
-        await scrapeGoogleSearchPaginated(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, searchDepth);
+        await scrapeGoogleSearchPaginated(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, searchDepth, countryCode);
       }
     }
 
@@ -118,7 +118,7 @@ async function scrapeLeads(
         await processConcurrently(searchVariations, CONCURRENCY.LOW, async (sq, qi) => {
           if (isCancelledFn()) return;
           onStatusUpdate(`Variation ${qi + 2}/${searchVariations.length + 1}: ${sq.substring(0, 80)}...`);
-          await scrapeGoogleSearchPaginated(browser, sq, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, searchDepth);
+          await scrapeGoogleSearchPaginated(browser, sq, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, searchDepth, countryCode);
         });
       }
 
