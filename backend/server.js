@@ -3,12 +3,55 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { scrapeLeads } = require('./scraper');
+const { connectDB, isDBConnected } = require('./db');
+
+// Models — safe to require even if DB is not connected (mongoose handles it)
+let Lead, Segment, ScrapeJob;
+try {
+  Lead = require('./models/Lead');
+  Segment = require('./models/Segment');
+  ScrapeJob = require('./models/ScrapeJob');
+} catch (e) {
+  console.warn('[server] Could not load models:', e.message);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// ─── Predefined segments (seeded into DB on startup) ──────────────────────────
+const PREDEFINED_SEGMENTS = [
+  'IT & Software Companies',
+  'Manufacturing Plants & Factories',
+  'Healthcare & Hospitals',
+  'Pharmaceutical Companies',
+  'Real Estate Developers',
+  'Construction Materials & Equipment',
+  'Education & Training Institutes',
+  'Finance, Banking & Insurance',
+  'Retail & E-commerce Hubs',
+  'Logistics & Supply Chain',
+  'Food Processing & Beverage',
+  'Textile & Garment Manufacturers',
+  'Automotive & Auto Components',
+  'Solar & Renewable Energy',
+  'Chemical Industries',
+  'Agriculture & Farming Equipment',
+  'Solar EPC registered with MNRE',
+  'Solar EPC not registered with MNRE',
+  'Solar Project Developers',
+  'Ceramic Tiles Manufacturers',
+  'Vitrified Tiles Manufacturers',
+  'Wall Tiles & Floor Tiles',
+  'Sanitaryware & Bathroom Fittings',
+  'Construction Materials & Building Products',
+];
+
+// ─── Cache age threshold ───────────────────────────────────────────────────────
+const CACHE_MAX_AGE_DAYS = 30;
+
 let currentBrowser = null;
 
+// ─── Middleware ────────────────────────────────────────────────────────────────
 app.use(helmet());
 
 app.use(cors({
@@ -29,6 +72,7 @@ const scrapeLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// ─── Validation ────────────────────────────────────────────────────────────────
 const VALID_DEPTHS = ['fast', 'medium', 'deep'];
 const MAX_LOCATION_LENGTH = 100;
 const MAX_INDUSTRY_LENGTH = 200;
@@ -58,12 +102,182 @@ function validateInput(body) {
   return errors;
 }
 
+// ─── Helper: save a lead to DB ─────────────────────────────────────────────────
+async function saveLeadToDB(lead, { industry, country, state, city }) {
+  if (!isDBConnected() || !Lead) return;
+  try {
+    await Lead.findOneAndUpdate(
+      { companyName: lead.companyName, industry, country, state },
+      {
+        ...lead,
+        industry,
+        country: country || '',
+        state:   state   || '',
+        city:    city    || '',
+        scrapedAt: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+  } catch (e) {
+    // Duplicate key or validation — silently ignore
+  }
+}
+
+// ─── Helper: mark scrape job done ──────────────────────────────────────────────
+async function markJobDone(industry, country, state, city, leadCount) {
+  if (!isDBConnected() || !ScrapeJob) return;
+  try {
+    await ScrapeJob.findOneAndUpdate(
+      { industry, country, state, city },
+      { status: 'done', leadCount, lastRunAt: new Date(), errorMsg: '' },
+      { upsert: true }
+    );
+  } catch (e) { /* ignore */ }
+}
+
+// ─── Routes ────────────────────────────────────────────────────────────────────
+
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: Date.now() });
+  res.json({ status: 'ok', timestamp: Date.now(), dbConnected: isDBConnected() });
 });
 
-// Debug endpoint: POST { "url": "https://www.google.com/maps/place/..." }
-// Returns raw extracted phone/address/website from that Maps detail page
+// ── GET /api/segments ── return all segment names (predefined + custom from DB)
+app.get('/api/segments', async (req, res) => {
+  if (!isDBConnected() || !Segment) {
+    // Fall back to hardcoded list
+    return res.json({ segments: PREDEFINED_SEGMENTS.map(name => ({ name, isCustom: false })) });
+  }
+  try {
+    const dbSegments = await Segment.find({}).sort({ isCustom: 1, name: 1 }).lean();
+    return res.json({ segments: dbSegments.map(s => ({ name: s.name, isCustom: s.isCustom })) });
+  } catch (e) {
+    return res.json({ segments: PREDEFINED_SEGMENTS.map(name => ({ name, isCustom: false })) });
+  }
+});
+
+// ── POST /api/segments ── add a custom segment
+app.post('/api/segments', async (req, res) => {
+  const { name } = req.body;
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return res.status(400).json({ error: 'Segment name is required.' });
+  }
+  const trimmed = name.trim().substring(0, MAX_INDUSTRY_LENGTH);
+
+  if (!isDBConnected() || !Segment) {
+    return res.json({ saved: false, reason: 'DB not connected' });
+  }
+  try {
+    const ip = req.ip || req.headers['x-forwarded-for'] || '';
+    await Segment.findOneAndUpdate(
+      { name: trimmed },
+      { name: trimmed, isCustom: true, addedByIp: ip.toString().substring(0, 45) },
+      { upsert: true, new: true }
+    );
+    return res.json({ saved: true, name: trimmed });
+  } catch (e) {
+    return res.status(500).json({ error: 'Could not save segment.' });
+  }
+});
+
+// ── GET /api/cache-check ── check if a query is already in the database
+app.get('/api/cache-check', async (req, res) => {
+  const { industry, country, state, city } = req.query;
+  if (!industry || !country) {
+    return res.status(400).json({ error: 'industry and country are required.' });
+  }
+
+  if (!isDBConnected() || !ScrapeJob || !Lead) {
+    return res.json({ cached: false });
+  }
+
+  try {
+    const job = await ScrapeJob.findOne({
+      industry: industry.trim(),
+      country:  (country || '').trim(),
+      state:    (state   || '').trim(),
+      city:     (city    || '').trim(),
+    }).lean();
+
+    const staleDate = new Date(Date.now() - CACHE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
+    const isFresh = job && job.status === 'done' && job.lastRunAt && new Date(job.lastRunAt) > staleDate;
+
+    if (!isFresh) {
+      return res.json({ cached: false });
+    }
+
+    const leadCount = await Lead.countDocuments({
+      industry: industry.trim(),
+      country:  (country || '').trim(),
+      state:    (state   || '').trim(),
+    });
+
+    return res.json({
+      cached:      leadCount > 0,
+      leadCount,
+      lastScraped: job.lastRunAt,
+    });
+  } catch (e) {
+    return res.json({ cached: false });
+  }
+});
+
+// ── GET /api/leads ── fetch cached leads (paginated)
+app.get('/api/leads', async (req, res) => {
+  const { industry, country, state, city, page = 1, limit = 200 } = req.query;
+  if (!industry || !country) {
+    return res.status(400).json({ error: 'industry and country are required.' });
+  }
+  if (!isDBConnected() || !Lead) {
+    return res.status(503).json({ error: 'Database not connected.' });
+  }
+
+  try {
+    const query = {
+      industry: industry.trim(),
+      country:  (country || '').trim(),
+      state:    (state   || '').trim(),
+    };
+
+    const pageNum  = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10) || 200));
+
+    const [leads, total] = await Promise.all([
+      Lead.find(query)
+        .sort({ companyName: 1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .lean(),
+      Lead.countDocuments(query),
+    ]);
+
+    return res.json({ leads, total, page: pageNum, limit: limitNum });
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to fetch leads.' });
+  }
+});
+
+// ── POST /api/run-scheduler ── trigger background scraping (GitHub Actions cron)
+app.post('/api/run-scheduler', async (req, res) => {
+  const secret = process.env.SCHEDULER_SECRET;
+  const provided = req.headers['x-scheduler-secret'] || req.body?.secret;
+  if (secret && provided !== secret) {
+    return res.status(401).json({ error: 'Unauthorized.' });
+  }
+
+  res.json({ message: 'Scheduler triggered. Running in background.' });
+
+  // Import lazily to avoid circular deps
+  try {
+    const { runScheduler } = require('./scheduler');
+    runScheduler(console.log).catch(err => {
+      console.error('[scheduler] Error:', err.message);
+    });
+  } catch (e) {
+    console.error('[scheduler] Could not load scheduler module:', e.message);
+  }
+});
+
+// ── Debug endpoint ─────────────────────────────────────────────────────────────
 app.post('/api/debug-maps', async (req, res) => {
   const { url } = req.body;
   if (!url || !url.includes('google.com/maps')) {
@@ -100,16 +314,16 @@ app.post('/api/debug-maps', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   } finally {
-    if (page) await page.close().catch(() => {});
+    if (page)    await page.close().catch(() => {});
     if (browser) await browser.close().catch(() => {});
   }
 });
-
 
 app.get('/api/scrape', (req, res) => {
   res.status(400).json({ error: 'Use POST to submit a scrape request' });
 });
 
+// ── POST /api/scrape ── live scrape (also saves to DB) ────────────────────────
 app.post('/api/scrape', scrapeLimiter, async (req, res) => {
   const validationErrors = validateInput(req.body);
   if (validationErrors.length > 0) {
@@ -117,6 +331,7 @@ app.post('/api/scrape', scrapeLimiter, async (req, res) => {
   }
 
   const { countryCode, country, state, city, industry, searchDepth } = req.body;
+  const loc = { industry, country: country || '', state: state || '', city: city || '' };
 
   req.setTimeout(0);
   res.setTimeout(0);
@@ -154,23 +369,47 @@ app.post('/api/scrape', scrapeLimiter, async (req, res) => {
     }
   }, 10000);
 
+  // Mark job as running in DB
+  if (isDBConnected() && ScrapeJob) {
+    ScrapeJob.findOneAndUpdate(
+      { industry: loc.industry, country: loc.country, state: loc.state, city: loc.city },
+      { ...loc, status: 'running', errorMsg: '' },
+      { upsert: true }
+    ).catch(() => {});
+  }
+
+  let leadsScraped = 0;
+
   try {
     sendEvent('status', { message: 'Starting browser...' });
 
     await scrapeLeads(
       { countryCode, country, state, city, industry, searchDepth: searchDepth || 'medium' },
-      (lead) => { sendEvent('lead', lead); },
+      async (lead) => {
+        sendEvent('lead', lead);
+        leadsScraped++;
+        // Save to shared DB asynchronously (don't block the SSE stream)
+        saveLeadToDB(lead, loc).catch(() => {});
+      },
       (status) => { sendEvent('status', { message: status }); },
       () => isCancelled,
       (browser) => { currentBrowser = browser; }
     );
 
     if (!isCancelled) {
-      sendEvent('done', { message: 'Scraping completed.' });
+      // Mark job done in DB
+      markJobDone(loc.industry, loc.country, loc.state, loc.city, leadsScraped).catch(() => {});
+      sendEvent('done', { message: 'Scraping completed.', savedToDB: isDBConnected(), leadCount: leadsScraped });
     }
   } catch (error) {
     console.error('Scraping error:', error);
     sendEvent('error', { message: error.message || 'An error occurred during scraping' });
+    if (isDBConnected() && ScrapeJob) {
+      ScrapeJob.findOneAndUpdate(
+        { industry: loc.industry, country: loc.country, state: loc.state, city: loc.city },
+        { status: 'failed', errorMsg: error.message }
+      ).catch(() => {});
+    }
   } finally {
     if (keepaliveTimer) clearInterval(keepaliveTimer);
     if (!res.writableEnded && !res.destroyed) {
@@ -179,28 +418,53 @@ app.post('/api/scrape', scrapeLimiter, async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+// ─── Start server ──────────────────────────────────────────────────────────────
+async function startServer() {
+  // Connect to DB first (non-blocking — server starts even if DB fails)
+  await connectDB();
 
-function gracefulShutdown(signal) {
-  console.log(`\n${signal} received. Shutting down gracefully...`);
-  server.close(() => {
-    console.log('HTTP server closed.');
-    if (currentBrowser) {
-      currentBrowser.close().then(() => {
-        console.log('Browser closed.');
-        process.exit(0);
-      }).catch(() => process.exit(1));
-    } else {
-      process.exit(0);
+  // Seed predefined segments into DB
+  if (isDBConnected() && Segment) {
+    try {
+      const ops = PREDEFINED_SEGMENTS.map(name => ({
+        updateOne: {
+          filter: { name },
+          update: { $setOnInsert: { name, isCustom: false } },
+          upsert: true,
+        },
+      }));
+      await Segment.bulkWrite(ops, { ordered: false });
+      console.log('[DB] Predefined segments seeded.');
+    } catch (e) {
+      console.warn('[DB] Segment seeding error (non-fatal):', e.message);
     }
+  }
+
+  const server = app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
   });
-  setTimeout(() => {
-    console.error('Forced shutdown after timeout.');
-    process.exit(1);
-  }, 15000).unref();
+
+  function gracefulShutdown(signal) {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+    server.close(() => {
+      console.log('HTTP server closed.');
+      if (currentBrowser) {
+        currentBrowser.close().then(() => {
+          console.log('Browser closed.');
+          process.exit(0);
+        }).catch(() => process.exit(1));
+      } else {
+        process.exit(0);
+      }
+    });
+    setTimeout(() => {
+      console.error('Forced shutdown after timeout.');
+      process.exit(1);
+    }, 15000).unref();
+  }
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
 }
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+startServer();

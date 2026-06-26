@@ -1,0 +1,28 @@
+name: Nightly Lead Scraper
+
+on:
+  schedule:
+    # Runs at 2:00 AM IST (UTC+5:30) = 8:30 PM UTC
+    - cron: '30 20 * * *'
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  trigger-scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Scraper Backend Scheduler
+        run: |
+          echo "Triggering nightly scheduler on Render backend..."
+          curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-scheduler-secret: ${{ secrets.SCHEDULER_SECRET }}" \
+            "${{ secrets.BACKEND_URL }}/api/run-scheduler" \
+          | grep -q "200" && echo "✅ Scheduler triggered successfully." || echo "❌ Scheduler trigger failed."
+
+      - name: Wake up Render backend (if sleeping)
+        run: |
+          echo "Pinging health endpoint to wake up the server..."
+          curl -s "${{ secrets.BACKEND_URL }}/health" || true
+          sleep 10

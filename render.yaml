@@ -15,6 +15,10 @@ services:
         value: https://leadscrapper.onrender.com,https://lead-generator-two-alpha.vercel.app,http://localhost:5173,http://localhost:4173
       - key: VIBE_API_KEY
         sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: SCHEDULER_SECRET
+        sync: false
 
   - type: static
     name: leadscrapper-ui
