@@ -136,14 +136,14 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
             detailPage.goto(biz.url, { waitUntil: 'domcontentloaded' }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('nav_timeout')), 12000)),
           ]);
+          
+          // Wait an extra moment for dynamic content to render
+          await sleep(2000);
         } catch (navErr) {
-          // Navigation timed out or failed — emit what we have
-          onLeadFound(lead);
-          return;
+          console.log(`Maps detail nav error for ${biz.name}: ${navErr.message}`);
+          // We don't return here! Even if navigation timed out, partial DOM might be loaded,
+          // and we definitely still want to visit the company website afterwards.
         }
-
-        // Wait an extra moment for dynamic content to render
-        await sleep(2000);
 
         const details = await safeEvaluate(detailPage, () => {
           let phone = '', website = '', address = '';
