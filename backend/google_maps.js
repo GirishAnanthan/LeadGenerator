@@ -1,6 +1,7 @@
 const { parsePhoneNumber } = require('libphonenumber-js/max');
 const { USER_AGENT, GOOGLE_CONSENT_COOKIE, TIMEOUT, WAIT_STRATEGY, PAGINATION, CONCURRENCY, SEARCH_DEPTH } = require('./constants');
 const { sleep, processConcurrently, createPage, safeEvaluate, safeGoto, closePage, extractDomain } = require('./helpers');
+const { scrapeContactFromWebsite } = require('./contact_scraper');
 
 // More flexible phone regex that matches Indian and international formats
 const PHONE_IN_CARD = /(?:\+?\d{1,3}[\s\-.]?)?\(?\d{3,5}\)?[\s\-.]?\d{3,5}[\s\-.]?\d{3,5}/;
@@ -199,11 +200,25 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
                 lead.landlineNumber = parsed.formatInternational();
               }
             } else {
-              // Store raw number — can't parse but still useful
               if (!lead.landlineNumber) lead.landlineNumber = details.phone;
             }
           } catch {
             if (!lead.landlineNumber) lead.landlineNumber = details.phone;
+          }
+        }
+
+        // ── Visit company website Contact Us page for richer data ──────────────
+        if (lead.website && (!lead.mobileNumber || !lead.emailId || !lead.address)) {
+          try {
+            const contactData = await scrapeContactFromWebsite(browser, lead.website, countryCode);
+            if (contactData.mobileNumber && !lead.mobileNumber)   lead.mobileNumber   = contactData.mobileNumber;
+            if (contactData.landlineNumber && !lead.landlineNumber) lead.landlineNumber = contactData.landlineNumber;
+            if (contactData.emailId && !lead.emailId)             lead.emailId        = contactData.emailId;
+            if (contactData.address && !lead.address)             lead.address        = contactData.address;
+            if (contactData.contactPerson && !lead.contactPerson) lead.contactPerson  = contactData.contactPerson;
+            if (contactData.socials && !lead.socials)             lead.socials        = contactData.socials;
+          } catch (e) {
+            console.log(`[Maps] Contact scrape failed for ${lead.website}: ${e.message}`);
           }
         }
       } catch (err) {

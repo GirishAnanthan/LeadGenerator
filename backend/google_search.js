@@ -2,6 +2,7 @@ const { parsePhoneNumber } = require('libphonenumber-js/max');
 const { USER_AGENT, TIMEOUT, WAIT_STRATEGY, IGNORED_DOMAINS, PAGINATION, CONCURRENCY, SEARCH_DEPTH } = require('./constants');
 const { extractDomain, sleep, processConcurrently, createPage, safeEvaluate, safeGoto, splitCompanyName, closePage } = require('./helpers');
 const { findDecisionMakers } = require('./decision_makers');
+const { scrapeContactFromWebsite } = require('./contact_scraper');
 
 async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLeadFound, onStatusUpdate, isCancelledFn, searchDepth = SEARCH_DEPTH.MEDIUM, countryCode) {
   let searchPage;
@@ -89,70 +90,12 @@ async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLe
 
         await processConcurrently(visitBatch, CONCURRENCY.HIGH, async (link) => {
           if (isCancelledFn()) return;
-          let webPage;
           try {
-            webPage = await createPage(browser, USER_AGENT);
-            await safeGoto(webPage, link.url, { waitUntil: WAIT_STRATEGY.DOM, timeout: TIMEOUT.SHORT });
+            // Use the dedicated contact scraper — visits homepage + Contact Us page
+            const contactData = await scrapeContactFromWebsite(browser, link.url, countryCode);
 
-            const webData = await safeEvaluate(webPage, () => {
-              let emails = [], socials = [], phone = '';
-
-              // Tel links are most reliable
-              document.querySelectorAll('a[href^="tel:"]').forEach(a => {
-                const p = a.getAttribute('href').replace('tel:', '').trim();
-                if (p && p.replace(/\D/g, '').length >= 7) phone = p;
-              });
-
-              // Mailto links
-              document.querySelectorAll('a[href^="mailto:"]').forEach(a => {
-                const m = a.getAttribute('href').replace('mailto:', '').split('?')[0].trim();
-                if (m && m.includes('@')) emails.push(m);
-              });
-
-              const text = document.body ? (document.body.innerText || '') : '';
-
-              // Extract emails from page text
-              const emailRegex = /([a-zA-Z0-9._+-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]{2,})/gi;
-              const emailMatches = text.match(emailRegex);
-              if (emailMatches) emails.push(...emailMatches);
-
-              // Phone from visible text (broad: matches Indian & intl formats)
-              if (!phone) {
-                // Indian: +91 9XXXXXXXXX, 9XXXXXXXXX, 0XX-XXXXXXXX
-                const phonePatterns = [
-                  /\+91[\s\-]?[6-9]\d{9}/g,               // Indian mobile with country code
-                  /\b0\d{2,4}[\s\-]?\d{6,8}\b/g,          // Indian landline with STD code
-                  /\b[6-9]\d{9}\b/g,                       // Indian mobile 10 digits
-                  /\+\d{1,3}[\s\-]?\(?\d{2,4}\)?[\s\-]?\d{3,5}[\s\-]?\d{3,5}/g, // International
-                ];
-                for (const pat of phonePatterns) {
-                  const m = text.match(pat);
-                  if (m && m[0]) { phone = m[0].trim(); break; }
-                }
-              }
-
-              // Social links
-              document.querySelectorAll('a').forEach(a => {
-                const h = a.href || '';
-                if (h.match(/linkedin\.com|facebook\.com|twitter\.com|instagram\.com/i)) {
-                  socials.push(h.split('?')[0]);
-                }
-              });
-
-              const md = document.querySelector('meta[name="description"]');
-              return {
-                emails: [...new Set(emails.filter(e => e.includes('@') && !e.endsWith('.png') && !e.endsWith('.jpg')))],
-                socials: [...new Set(socials)],
-                description: md ? md.content.trim() : '',
-                phone,
-              };
-            }) || {};
-
-            // Only mark as enriched if we actually got something useful
-            const hasData = webData.phone || (webData.emails && webData.emails.length > 0);
-
-            let contactPerson = '';
-            if (!skipDecisionMakers) {
+            let contactPerson = contactData.contactPerson || '';
+            if (!skipDecisionMakers && !contactPerson) {
               const domain = extractDomain(link.url);
               if (domain) {
                 const dmList = await findDecisionMakers(browser, link.title, domain);
@@ -162,39 +105,20 @@ async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLe
               }
             }
 
-            // Classify phone as mobile or landline using libphonenumber
-            let mobileNumber = '';
-            let landlineNumber = '';
-            if (webData.phone) {
-              try {
-                const parsed = parsePhoneNumber(webData.phone, countryCode || undefined);
-                if (parsed && parsed.isValid()) {
-                  if (parsed.getType() === 'MOBILE') mobileNumber = parsed.formatInternational();
-                  else landlineNumber = parsed.formatInternational();
-                } else {
-                  landlineNumber = webData.phone;
-                }
-              } catch { landlineNumber = webData.phone; }
-            }
-
-            // Always emit the enriched (or attempted) lead for visited pages
             enrichedUrls.add(link.url);
             onLeadFound({
-              companyName: splitCompanyName(link.title),
-              address: '',
-              contactPerson: contactPerson || '',
-              mobileNumber,
-              landlineNumber,
-              emailId: (webData.emails && webData.emails.length > 0) ? webData.emails.join(', ') : '',
-              website: link.url || '',
-              socials: (webData.socials && webData.socials.length > 0) ? webData.socials.join(', ') : '',
-              description: webData.description || snippetMap[link.url] || '',
+              companyName:    splitCompanyName(link.title),
+              address:        contactData.address        || '',
+              contactPerson:  contactPerson,
+              mobileNumber:   contactData.mobileNumber   || '',
+              landlineNumber: contactData.landlineNumber || '',
+              emailId:        contactData.emailId        || '',
+              website:        link.url                   || '',
+              socials:        contactData.socials        || '',
+              description:    snippetMap[link.url]       || '',
             });
           } catch (e) {
             console.log(`Failed to process ${link.url}: ${e.message}`);
-            // Don't add to enrichedUrls so bare lead gets emitted as fallback
-          } finally {
-            await closePage(webPage);
           }
         });
       }
