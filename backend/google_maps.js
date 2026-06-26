@@ -110,6 +110,7 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
       website: '',
       socials: '',
       description: '',
+      contactPageUrl: '',
     };
 
     // Extract phone from card text (broad regex)
@@ -255,6 +256,7 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
             if (contactData.address && !lead.address)             lead.address        = contactData.address;
             if (contactData.contactPerson && !lead.contactPerson) lead.contactPerson  = contactData.contactPerson;
             if (contactData.socials && !lead.socials)             lead.socials        = contactData.socials;
+            if (contactData.contactPageUrl)                       lead.contactPageUrl = contactData.contactPageUrl;
             
             // PROGRESSIVE YIELD 3: Emit final contact page info
             onLeadFound({ ...lead });

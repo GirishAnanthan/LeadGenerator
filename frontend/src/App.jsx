@@ -369,6 +369,7 @@ function AppContent() {
                       contactPerson:  data.contactPerson  || existing.contactPerson,
                       socials:        data.socials        || existing.socials,
                       website:        data.website        || existing.website,
+                      contactPageUrl: data.contactPageUrl || existing.contactPageUrl,
                       description:    data.description    || existing.description,
                     };
                     map.set(data.companyName, merged);
@@ -412,7 +413,7 @@ function AppContent() {
 
   const exportToCSV = () => {
     if (leads.length === 0) return;
-    const headers = ['Company Name', 'Customer Segment', 'Address', 'Decision Makers (Predicted)', 'Mobile Number', 'Landline Number', 'Email ID', 'Website', 'Socials'];
+    const headers = ['Company Name', 'Customer Segment', 'Address', 'Decision Makers (Predicted)', 'Mobile Number', 'Landline Number', 'Email ID', 'Website', 'Contact Page', 'Socials'];
     const csvRows = [headers.join(',')];
 
     for (const lead of leads) {
@@ -425,6 +426,7 @@ function AppContent() {
         lead.landlineNumber ? `="${lead.landlineNumber}"` : '',
         lead.emailId,
         lead.website,
+        lead.contactPageUrl,
         lead.socials,
       ].map((val, idx) => {
         if ((idx === 4 || idx === 5) && val) return val;
@@ -698,6 +700,7 @@ function AppContent() {
                   <th>Landline Number</th>
                   <th>Email ID</th>
                   <th>Website</th>
+                  <th>Contact Page</th>
                   <th>Social Profiles</th>
                 </tr>
               </thead>
@@ -731,6 +734,11 @@ function AppContent() {
                       <td>
                         {lead.website
                           ? <a href={lead.website} target="_blank" rel="noreferrer" style={{ color: '#d4af37' }}>Link</a>
+                          : <div style={{ textAlign: 'center' }}>-</div>}
+                      </td>
+                      <td>
+                        {lead.contactPageUrl
+                          ? <a href={lead.contactPageUrl} target="_blank" rel="noreferrer" style={{ color: '#d4af37' }}>Link</a>
                           : <div style={{ textAlign: 'center' }}>-</div>}
                       </td>
                       <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

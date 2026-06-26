@@ -13,6 +13,7 @@ const leadSchema = new mongoose.Schema(
     landlineNumber: { type: String, default: '' },
     emailId:        { type: String, default: '' },
     website:        { type: String, default: '' },
+    contactPageUrl: { type: String, default: '' },
     socials:        { type: String, default: '' },
     description:    { type: String, default: '' },
     scrapedAt:      { type: Date, default: Date.now },

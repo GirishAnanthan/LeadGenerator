@@ -100,6 +100,7 @@ async function scrapeContactFromWebsite(browser, websiteUrl, countryCode) {
     address: '',
     contactPerson: '',
     socials: '',
+    contactPageUrl: '',
   };
 
   if (!websiteUrl) return result;
@@ -206,6 +207,8 @@ async function scrapeContactFromWebsite(browser, websiteUrl, countryCode) {
         });
 
         if (!statusOk) { await closePage(contactPage); contactPage = null; continue; }
+        
+        result.contactPageUrl = contactUrl; // Store the valid contact page URL
 
         const contactData = await safeEvaluate(contactPage, () => {
           const telPhones = [];

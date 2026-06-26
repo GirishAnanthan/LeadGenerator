@@ -115,6 +115,7 @@ async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLe
               emailId:        contactData.emailId        || '',
               website:        link.url                   || '',
               socials:        contactData.socials        || '',
+              contactPageUrl: contactData.contactPageUrl || '',
               description:    snippetMap[link.url]       || '',
             });
           } catch (e) {
@@ -136,6 +137,7 @@ async function scrapeGoogleSearchPaginated(browser, query, existingDomains, onLe
             emailId: '',
             website: link.url || '',
             socials: '',
+            contactPageUrl: '',
             description: snippetMap[link.url] || '',
           });
         }
