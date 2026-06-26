@@ -99,6 +99,8 @@ function AppContent() {
   );
 
   const abortControllerRef = useRef(null);
+  const readerRef = useRef(null);
+  const isCancelledRef = useRef(false);
   const leadsMapRef = useRef(new Map());
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -283,6 +285,7 @@ function AppContent() {
     // ── Live scrape ────────────────────────────────────────────────────────────
     setSourceMode('live');
     setIsScraping(true);
+    isCancelledRef.current = false;
     if (!append) {
       leadsMapRef.current = new Map();
       setLeads([]);
@@ -310,6 +313,7 @@ function AppContent() {
       if (!response.body) throw new Error('ReadableStream not yet supported in this browser.');
 
       const reader = response.body.getReader();
+      readerRef.current = reader;
       const decoder = new TextDecoder('utf-8');
 
       let lastChunkTime = Date.now();
@@ -317,15 +321,21 @@ function AppContent() {
         if (Date.now() - lastChunkTime > 35000) {
           clearInterval(connectionTimeout);
           if (abortControllerRef.current) abortControllerRef.current.abort();
+          if (readerRef.current) readerRef.current.cancel().catch(()=>{});
           setStatusMsg('Connection dropped. The server might have restarted or crashed.');
           setIsScraping(false);
         }
       }, 5000);
 
       while (true) {
+        if (isCancelledRef.current) {
+          reader.cancel().catch(()=>{});
+          break;
+        }
+        
         const { done, value } = await reader.read();
         lastChunkTime = Date.now();
-        if (done) break;
+        if (done || isCancelledRef.current) break;
 
         const chunk = decoder.decode(value, { stream: true });
         const events = chunk.split('\n\n').filter(Boolean);
@@ -393,7 +403,9 @@ function AppContent() {
   };
 
   const cancelSearch = () => {
+    isCancelledRef.current = true;
     if (abortControllerRef.current) abortControllerRef.current.abort();
+    if (readerRef.current) readerRef.current.cancel().catch(()=>{});
     setIsScraping(false);
     setStatusMsg('Search cancelled.');
   };
