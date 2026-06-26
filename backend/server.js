@@ -378,7 +378,7 @@ app.post('/api/scrape', scrapeLimiter, async (req, res) => {
     ).catch(() => {});
   }
 
-  let leadsScraped = 0;
+  const uniqueLeadsScraped = new Set();
 
   try {
     sendEvent('status', { message: 'Starting browser...' });
@@ -387,7 +387,7 @@ app.post('/api/scrape', scrapeLimiter, async (req, res) => {
       { countryCode, country, state, city, industry, searchDepth: searchDepth || 'medium' },
       async (lead) => {
         sendEvent('lead', lead);
-        leadsScraped++;
+        uniqueLeadsScraped.add(lead.companyName);
         // Save to shared DB asynchronously (don't block the SSE stream)
         saveLeadToDB(lead, loc).catch(() => {});
       },
@@ -398,8 +398,8 @@ app.post('/api/scrape', scrapeLimiter, async (req, res) => {
 
     if (!isCancelled) {
       // Mark job done in DB
-      markJobDone(loc.industry, loc.country, loc.state, loc.city, leadsScraped).catch(() => {});
-      sendEvent('done', { message: 'Scraping completed.', savedToDB: isDBConnected(), leadCount: leadsScraped });
+      markJobDone(loc.industry, loc.country, loc.state, loc.city, uniqueLeadsScraped.size).catch(() => {});
+      sendEvent('done', { message: 'Scraping completed.', savedToDB: isDBConnected(), leadCount: uniqueLeadsScraped.size });
     }
   } catch (error) {
     console.error('Scraping error:', error);

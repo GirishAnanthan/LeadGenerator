@@ -23,7 +23,7 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
 
     for (let i = 0; i < maxScrolls; i++) {
       if (isCancelledFn()) break;
-      await mapsPage.evaluate(() => {
+      await safeEvaluate(mapsPage, () => {
         const feed = document.querySelector('div[role="feed"]');
         if (feed) feed.scrollBy(0, feed.scrollHeight);
       });
@@ -88,6 +88,10 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
     // Extract website from card links
     const websiteLink = biz.cardLinks.split(',').find(l => l.startsWith('http') && !l.includes('google.com/maps'));
     if (websiteLink) lead.website = websiteLink;
+
+    // PROGRESSIVE YIELD 1: Instantly show basic details on UI
+    onLeadFound({ ...lead });
+    onStatusUpdate(`Extracting contact details for ${biz.name}...`);
 
     if (!skipDetailPages) {
       let detailPage;
@@ -207,6 +211,9 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
           }
         }
 
+        // PROGRESSIVE YIELD 2: Emit Maps Detail Page info
+        onLeadFound({ ...lead });
+
         // ── Visit company website Contact Us page for richer data ──────────────
         if (lead.website && (!lead.mobileNumber || !lead.emailId || !lead.address)) {
           try {
@@ -217,6 +224,9 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
             if (contactData.address && !lead.address)             lead.address        = contactData.address;
             if (contactData.contactPerson && !lead.contactPerson) lead.contactPerson  = contactData.contactPerson;
             if (contactData.socials && !lead.socials)             lead.socials        = contactData.socials;
+            
+            // PROGRESSIVE YIELD 3: Emit final contact page info
+            onLeadFound({ ...lead });
           } catch (e) {
             console.log(`[Maps] Contact scrape failed for ${lead.website}: ${e.message}`);
           }
@@ -227,8 +237,6 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
         await closePage(detailPage);
       }
     }
-
-    onLeadFound(lead);
   });
 }
 
