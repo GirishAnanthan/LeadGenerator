@@ -21,30 +21,30 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
     await mapsPage.waitForSelector('a[href*="/maps/place/"]', { timeout: TIMEOUT.SHORT });
     onStatusUpdate('Scrolling Maps for more results...');
 
+    const businessesMap = new Map();
+
     for (let i = 0; i < maxScrolls; i++) {
       if (isCancelledFn()) break;
       onStatusUpdate(`Scrolling Maps for more results (${i + 1}/${maxScrolls})...`);
+      
       await safeEvaluate(mapsPage, () => {
         const feed = document.querySelector('div[role="feed"]');
         if (feed) feed.scrollBy(0, feed.scrollHeight);
       });
       await sleep(PAGINATION.SLEEP_MS);
-    }
-    
-    onStatusUpdate('Extracting business links from Maps...');
 
-    businesses = await safeEvaluate(mapsPage, () => {
-      const results = [];
-      document.querySelectorAll('a[href*="/maps/place/"]').forEach(item => {
-        const parent = item.closest('[role="article"]') || item.parentElement.parentElement;
-        if (parent) {
-          const nameEl = parent.querySelector('.fontHeadlineSmall, .fontTitleMedium, h3, h2, h4');
-          let name = nameEl ? nameEl.innerText : (item.getAttribute('aria-label') || '');
-          if (!name && item.innerText) name = item.innerText;
-          
-          if (name) {
-            name = name.split(' - ')[0].split(' | ')[0].split(' / ')[0].split('/')[0].trim();
-            if (!results.some(r => r.name === name)) {
+      // Extract currently visible businesses
+      const currentBatch = await safeEvaluate(mapsPage, () => {
+        const results = [];
+        document.querySelectorAll('a[href*="/maps/place/"]').forEach(item => {
+          const parent = item.closest('[role="article"]') || item.parentElement.parentElement;
+          if (parent) {
+            const nameEl = parent.querySelector('.fontHeadlineSmall, .fontTitleMedium, h3, h2, h4');
+            let name = nameEl ? nameEl.innerText : (item.getAttribute('aria-label') || '');
+            if (!name && item.innerText) name = item.innerText;
+            
+            if (name) {
+              name = name.split(' - ')[0].split(' | ')[0].split(' / ')[0].split('/')[0].trim();
               const cardText = parent.innerText || '';
               const cardLinks = Array.from(parent.querySelectorAll('a')).map(a => a.href).filter(Boolean);
               results.push({
@@ -55,10 +55,36 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
               });
             }
           }
-        }
+        });
+        return results;
       });
-      return results;
-    }) || [];
+
+      if (currentBatch) {
+        for (const biz of currentBatch) {
+          if (!businessesMap.has(biz.name)) {
+            businessesMap.set(biz.name, biz);
+            
+            // YIELD 0: Ultra-early instant display!
+            const phoneMatch = biz.cardText.match(/(?:\+?\d{1,3}[\s\-.]?)?\(?\d{3,5}\)?[\s\-.]?\d{3,5}[\s\-.]?\d{3,5}/);
+            const websiteLink = biz.cardLinks.split(',').find(l => l.startsWith('http') && !l.includes('google.com/maps'));
+            
+            onLeadFound({
+              companyName: biz.name,
+              landlineNumber: phoneMatch ? phoneMatch[0].trim() : '',
+              website: websiteLink || '',
+              mobileNumber: '',
+              emailId: '',
+              address: '',
+              contactPerson: '',
+              socials: '',
+              description: '',
+            });
+          }
+        }
+      }
+    }
+
+    businesses = Array.from(businessesMap.values());
 
     if (businesses.length === 0) {
       onStatusUpdate('No Maps results found.');
