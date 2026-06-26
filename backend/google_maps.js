@@ -38,8 +38,10 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
       document.querySelectorAll('a[href*="/maps/place/"]').forEach(item => {
         const parent = item.closest('[role="article"]') || item.parentElement.parentElement;
         if (parent) {
-          const nameEl = parent.querySelector('.fontHeadlineSmall');
+          const nameEl = parent.querySelector('.fontHeadlineSmall, .fontTitleMedium, h3, h2, h4');
           let name = nameEl ? nameEl.innerText : (item.getAttribute('aria-label') || '');
+          if (!name && item.innerText) name = item.innerText;
+          
           if (name) {
             name = name.split(' - ')[0].split(' | ')[0].split(' / ')[0].split('/')[0].trim();
             if (!results.some(r => r.name === name)) {

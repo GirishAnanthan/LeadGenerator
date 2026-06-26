@@ -94,7 +94,12 @@ function splitCompanyName(title) {
 
 async function closePage(page) {
   if (page) {
-    try { await page.close(); } catch (e) { /* ignore */ }
+    try {
+      await Promise.race([
+        page.close(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('close_timeout')), 5000))
+      ]);
+    } catch (e) { /* ignore */ }
   }
 }
 
