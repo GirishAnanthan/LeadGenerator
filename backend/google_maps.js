@@ -23,12 +23,15 @@ async function scrapeGoogleMapsWithScrolls(browser, query, existingDomains, onLe
 
     for (let i = 0; i < maxScrolls; i++) {
       if (isCancelledFn()) break;
+      onStatusUpdate(`Scrolling Maps for more results (${i + 1}/${maxScrolls})...`);
       await safeEvaluate(mapsPage, () => {
         const feed = document.querySelector('div[role="feed"]');
         if (feed) feed.scrollBy(0, feed.scrollHeight);
       });
       await sleep(PAGINATION.SLEEP_MS);
     }
+    
+    onStatusUpdate('Extracting business links from Maps...');
 
     businesses = await safeEvaluate(mapsPage, () => {
       const results = [];

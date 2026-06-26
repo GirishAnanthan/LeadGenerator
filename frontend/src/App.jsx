@@ -312,8 +312,19 @@ function AppContent() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
 
+      let lastChunkTime = Date.now();
+      const connectionTimeout = setInterval(() => {
+        if (Date.now() - lastChunkTime > 35000) {
+          clearInterval(connectionTimeout);
+          if (abortControllerRef.current) abortControllerRef.current.abort();
+          setStatusMsg('Connection dropped. The server might have restarted or crashed.');
+          setIsScraping(false);
+        }
+      }, 5000);
+
       while (true) {
         const { done, value } = await reader.read();
+        lastChunkTime = Date.now();
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
@@ -370,6 +381,7 @@ function AppContent() {
           }
         });
       }
+      clearInterval(connectionTimeout);
     } catch (error) {
       if (error.name === 'AbortError') {
         setStatusMsg('Search cancelled by user.');

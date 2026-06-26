@@ -60,7 +60,10 @@ async function safeGoto(page, url, options = {}) {
 
 async function safeEvaluate(page, fn, ...args) {
   try {
-    return await page.evaluate(fn, ...args);
+    return await Promise.race([
+      page.evaluate(fn, ...args),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('evaluate_timeout')), 15000))
+    ]);
   } catch {
     return null;
   }
